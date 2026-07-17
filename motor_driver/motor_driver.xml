@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!-- pluginlib 插件描述：把 MecanumSystemHardware 注册为 ros2_control 可发现的
+     SystemInterface 插件。URDF 中 <plugin>motor_driver/MecanumSystemHardware</plugin>
+     引用的就是这里的 name。 -->
+<library path="motor_driver">
+  <class name="motor_driver/MecanumSystemHardware"
+         type="motor_driver::MecanumSystemHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      四轮麦克纳姆小车硬件接口：经 USB 串口（ASCII 协议）控制 4 路电机驱动板，
+      提供 4 个 velocity 命令接口与 4×(position+velocity) 状态接口。
+    </description>
+  </class>
+</library>
