@@ -1,0 +1,33 @@
+# clangd 配置：四轮麦克纳姆小车工程
+# 说明：clangd 会从源文件向上查找本文件与 compile_commands.json。
+# 本仓库即 colcon 工作空间的 src/，编译数据库由 scripts/setup_clangd.sh
+# 汇总到本目录下的 compile_commands.json。
+
+CompileFlags:
+  # 编译数据库所在目录（相对本文件），即仓库根
+  CompilationDatabase: .
+  # 强制 C++20（硬件接口用到 <numbers>），并统一用 clang 前端解析
+  Add:
+    - -std=c++20
+    - -xc++
+  # 移除 GCC 专有、clangd 不识别的参数，避免误报
+  Remove:
+    - -fabi-version*
+    - -fno-tree-*
+    - -mno-*
+    - --param*
+
+Diagnostics:
+  # 未使用头文件的提示较吵，关闭；保留其它诊断
+  UnusedIncludes: None
+  ClangTidy:
+    Add:
+      - bugprone-*
+      - performance-*
+    Remove:
+      - bugprone-easily-swappable-parameters
+
+InlayHints:
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
