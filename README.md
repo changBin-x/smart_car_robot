@@ -1,0 +1,233 @@
+# smart_car_robot —— 四轮麦克纳姆轮全向移动小车
+
+基于 **ROS 2 Jazzy + ros2_control** 的四轮麦克纳姆轮全向移动平台。
+上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与里程计，
+底层通过自研 `hardware_interface::SystemInterface` 插件（`motor_driver`）经 USB 串口
+驱动 4 路电机驱动板，闭环控制 4 个 MG310 霍尔编码器减速电机。
+
+- 开发/仿真环境：WSL2 + Ubuntu 24.04（mock 硬件，无串口）
+- 部署环境：树莓派 4B + Ubuntu 24.04 Server（实机串口 `/dev/ttyUSB0`，可配置）
+
+## 1. 硬件清单
+
+| 部件 | 型号/规格 | 数量 | 说明 |
+|---|---|---|---|
+| 主控 | 树莓派 4B（Ubuntu 24.04 Server） | 1 | 运行 ROS 2 Jazzy |
+| 电机驱动板 | 4 路编码器电机驱动板（MSPM0 协处理器，Type-C 串口） | 1 | 115200-8N1 ASCII 协议 |
+| 电机 | MG310 霍尔编码器减速电机（7.4 V，减速比 20，编码器 13 线） | 4 | 额定 400 rpm |
+| 车轮 | 麦克纳姆轮 Ø60 mm | 4 | 左前/右前为镜像 A/B 轮 |
+| 电池 | 2S 锂电（7.4 V，5–12 V 均可） | 1 | 驱动板供电 |
+| 数据线 | USB A → Type-C | 1 | 树莓派 ↔ 驱动板串口 |
+
+### 接线说明
+
+```
+树莓派 4B  ──USB A→Type-C──  4路电机驱动板  ──XH2.54-2PIN×4──  电机电源线
+                              │            ──PH2.0-6PIN×4───  编码器线
+                              └─5V-12V 电源端子 ── 2S 锂电池
+```
+
+- 每个电机 2 组线：**XH2.54-2PIN**（电机电源）+ **PH2.0-6PIN**（编码器：电机−、编码器电源、A 相、B 相、编码器地、电机+）。
+- 驱动板电机接口与车轮位置固件绑定，必须按下表接线：
+
+| 板载丝印 | 车轮位置 | ROS 关节名 |
+|---|---|---|
+| M1 | 左前 | `front_left_wheel_joint` |
+| M2 | 左后 | `rear_left_wheel_joint` |
+| M3 | 右前 | `front_right_wheel_joint` |
+| M4 | 右后 | `rear_right_wheel_joint` |
+
+- 驱动板由电池供电，Type-C 仅作串口通信；树莓派独立供电。
+- 串口协议细节（指令表、单位换算公式）见 [docs/协议总结.md](docs/协议总结.md)。
+
+## 2. 软件架构
+
+```mermaid
+graph TD
+    subgraph 用户层
+        TELEOP["teleop_twist_keyboard / Nav2<br/>(TwistStamped)"]
+    end
+    subgraph "ros2_control 框架"
+        CM[controller_manager]
+        MDC["mecanum_drive_controller<br/>(运动学解算 + /odom + TF)"]
+        JSB["joint_state_broadcaster<br/>(/joint_states)"]
+        RI["ResourceManager<br/>(接口注册与仲裁)"]
+    end
+    subgraph "硬件抽象层 (motor_driver 包)"
+        HW["MecanumSystemHardware :<br/>hardware_interface::SystemInterface"]
+        PROTO["协议层 (ASCII 帧编解码)"]
+        SERIAL["串口传输层 (termios, 非阻塞+超时)"]
+    end
+    subgraph 物理层
+        BOARD["4 路电机驱动板<br/>(板内 PID 闭环)"]
+        MOTOR["MG310 电机 ×4<br/>(AB 相霍尔编码器)"]
+    end
+
+    TELEOP -->|"/mecanum_drive_controller/reference"| MDC
+    CM --> MDC
+    CM --> JSB
+    MDC -->|"velocity 命令接口 ×4"| RI
+    JSB -->|"position/velocity 状态接口 ×8"| RI
+    RI --> HW
+    HW --> PROTO --> SERIAL
+    SERIAL -->|"$spd:...# / $MAll,$MTEP 上报"| BOARD
+    BOARD -->|PWM| MOTOR
+    MOTOR -->|编码器脉冲| BOARD
+```
+
+- **mecanum_drive_controller**：订阅 `TwistStamped` 期望速度，按麦轮逆运动学拆成 4 个轮子的
+  `velocity` 命令；同时用轮速正运动学积分出 `/odom` 并发布 `odom → base_link` TF。
+- **joint_state_broadcaster**：把 8 个状态接口转发为 `/joint_states`。
+- **motor_driver**：读——解析驱动板周期上报的编码器计数，换算 rad / rad/s；
+  写——把 rad/s 命令换算为 mm/s 下发 `$spd` 指令。详见 [motor_driver/README.md](motor_driver/README.md)。
+- **mock 模式**（WSL2）：`<ros2_control>` 内换用 `mock_components/GenericSystem`，
+  命令值直接回环到状态值，无需串口即可全链路调试控制器与 TF。
+
+## 3. 目录结构
+
+本仓库即 colcon 工作空间的 `src/` 目录，克隆后放入工作空间即可编译：
+
+```
+smart_car_ws/                        # colcon 工作空间（自建）
+└── src/                             # ← 本仓库
+    ├── README.md                    # 本文件（项目总览）
+    ├── scripts/                     # 编译/环境脚本（clangd 配置生成等）
+    │   ├── build.sh                 #   一键编译 + 生成 compile_commands.json
+    │   └── setup_clangd.sh          #   生成 .clangd 与顶层 compile_commands.json
+    ├── docs/                        # 硬件资料与协议总结
+    │   ├── M310电机/
+    │   ├── 电机驱动板/
+    │   └── 协议总结.md
+    ├── motor_driver/                # 硬件接口插件包 (ament_cmake)
+    │   ├── include/motor_driver/    #   SystemInterface 实现 + 协议/串口分层
+    │   ├── src/
+    │   ├── test/                    #   协议层单元测试
+    │   ├── motor_driver.xml         #   pluginlib 导出描述
+    │   ├── README.md
+    │   ├── CMakeLists.txt
+    │   └── package.xml
+    └── smartcar_bringup/            # 模型 + 控制器配置 + 启动包
+        ├── urdf/                    #   xacro（底盘 + 4 轮 + ros2_control 标签）
+        ├── config/                  #   controllers.yaml
+        ├── launch/                  #   bringup launch
+        ├── doc/                     #   验证手册
+        ├── README.md
+        ├── CMakeLists.txt
+        └── package.xml
+```
+
+## 4. 环境搭建
+
+### 4.1 WSL2 开发机（Ubuntu 24.04）
+
+```bash
+# 1. 安装 ROS 2 Jazzy（含 desktop 与开发工具，按官方 deb 源方式）
+sudo apt update && sudo apt install -y software-properties-common curl
+sudo add-apt-repository universe
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+     -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+     http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | \
+     sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+sudo apt update && sudo apt install -y ros-jazzy-desktop ros-dev-tools
+
+# 2. 本项目依赖
+sudo apt install -y \
+  ros-jazzy-ros2-control \
+  ros-jazzy-ros2-controllers \
+  ros-jazzy-xacro \
+  ros-jazzy-robot-state-publisher \
+  ros-jazzy-teleop-twist-keyboard
+
+# 3. 环境变量（写入 ~/.bashrc）
+echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc && source ~/.bashrc
+```
+
+> WSL2 无串口硬件，统一用 `use_mock_hardware:=true`（launch 默认值）调试。
+
+#### 代码补全：clangd
+
+本项目使用 **clangd** 作为 C++ 语言服务器（代码补全、跳转、诊断），不使用
+Microsoft C/C++ 扩展的 IntelliSense。clangd 依赖 `compile_commands.json`
+获取每个源文件的编译参数，由脚本自动生成：
+
+```bash
+# 安装 clangd（VS Code 另需安装 "clangd" 扩展并禁用 C/C++ 的 IntelliSense）
+sudo apt install -y clangd
+
+# 生成 .clangd 配置与顶层 compile_commands.json（在 src/scripts 下执行）
+cd ~/smart_car_ws/src/scripts
+./setup_clangd.sh
+```
+
+脚本会用 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 编译，并把各包的
+`compile_commands.json` 汇总软链到仓库根，clangd 即可全量索引。
+详见 [scripts/README.md](scripts/README.md)。
+
+### 4.2 树莓派 4B 部署机（Ubuntu 24.04 Server）
+
+```bash
+# 1. 安装 ROS 2 Jazzy base（无 GUI）：同上 deb 源，把 ros-jazzy-desktop 换成
+sudo apt install -y ros-jazzy-ros-base ros-dev-tools
+
+# 2. 本项目依赖（同 4.1 第 2 步）
+
+# 3. 串口权限：把当前用户加入 dialout 组（重新登录生效）
+sudo usermod -aG dialout $USER
+
+# 4. 确认驱动板设备名（插上 Type-C 后）
+ls /dev/ttyUSB* /dev/ttyACM*
+# 如果不是 /dev/ttyUSB0，启动时用 serial_port launch 参数覆盖
+```
+
+> 建议：为驱动板做 udev 固定别名（防止多 USB 设备时序号漂移），后续路线图中提供规则示例。
+
+## 5. 编译与启动
+
+本仓库需放入 colcon 工作空间的 `src/` 下编译：
+
+```bash
+# 首次获取代码：建好工作空间并克隆本仓库到 src/
+mkdir -p ~/smart_car_ws/src
+git clone -b feature_rpi4B https://github.com/changBin-x/smart_car_robot.git ~/smart_car_ws/src
+
+# 方式一：使用脚本一键编译（推荐，同时生成 clangd 所需的 compile_commands.json）
+cd ~/smart_car_ws/src/scripts
+./build.sh
+
+# 方式二：手动编译（在工作空间根目录执行）
+cd ~/smart_car_ws
+colcon build --symlink-install
+source install/setup.bash
+```
+
+启动命令：
+
+```bash
+# WSL2：mock 硬件启动（默认 use_mock_hardware:=true）
+ros2 launch smartcar_bringup smartcar.launch.py
+
+# 树莓派：实机启动
+ros2 launch smartcar_bringup smartcar.launch.py \
+  use_mock_hardware:=false serial_port:=/dev/ttyUSB0
+
+# 键盘遥控（Jazzy 的 mecanum_drive_controller 订阅 TwistStamped，
+# teleop 需加 stamped:=true 并 remap 到控制器 reference 话题）
+ros2 run teleop_twist_keyboard teleop_twist_keyboard \
+  --ros-args -p stamped:=true \
+  -r /cmd_vel:=/mecanum_drive_controller/reference
+```
+
+完整验证命令（控制器状态、硬件接口、里程计方向）见
+[smartcar_bringup/doc/验证手册.md](smartcar_bringup/doc/验证手册.md)。
+
+## 6. 后续路线图
+
+- [x] **任务 2**：`motor_driver` 硬件接口插件（串口协议实现 + 完整生命周期 + 故障容错）
+- [x] **任务 3**：`smartcar_bringup`（xacro 模型、controllers.yaml、launch、验证文档）
+- [x] WSL2 mock 验收：前进 / 横移 / 原地旋转的 `/odom` 方向验证
+- [ ] 树莓派实机联调：编码器倍频 K 标定、电机方向系数校准、轮距实测回填
+- [ ] udev 规则固定串口别名（`/dev/smartcar_driver`）
+- [ ] 加入 IMU + `ekf`（robot_localization）融合里程计
+- [ ] 接入 Nav2 导航栈与 SLAM（slam_toolbox）
+- [ ] systemd 开机自启动 bringup
