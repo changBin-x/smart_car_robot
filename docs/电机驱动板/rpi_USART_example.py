@@ -1,3 +1,10 @@
+# Author: ChangBin bin_chang@qq.com
+# Date: 2026-07-17
+# LastEditors: ChangBin bin_chang@qq.com
+# LastEditTime: 2026-07-17
+# Copyright (c) 2026 by ChangBin, All Rights Reserved.
+# Description: 树莓派串口通信示例，用于与 M310 电机驱动板进行数据收发
+
 import serial
 import time
 

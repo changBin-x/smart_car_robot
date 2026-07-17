@@ -1,6 +1,9 @@
-// Copyright 2026 smart_car_robot
-//
-// 串口传输层实现。与头文件 serial_port.hpp 配对阅读。
+// Author: ChangBin bin_chang@qq.com
+// Date: 2026-07-17
+// LastEditors: ChangBin bin_chang@qq.com
+// LastEditTime: 2026-07-17
+// Copyright (c) 2026 by ChangBin, All Rights Reserved.
+// Description: 串口传输层实现，与 serial_port.hpp 配对阅读
 //
 // 术语速记（新手向）：
 // - 文件描述符 fd：Linux 里"打开的设备/文件"的整数句柄，-1 表示无效。

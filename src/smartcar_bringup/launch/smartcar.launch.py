@@ -1,6 +1,9 @@
-# Copyright 2026 smart_car_robot
-#
-# smartcar.launch.py —— 一键启动四轮麦克纳姆小车控制栈
+# Author: ChangBin bin_chang@qq.com
+# Date: 2026-07-17
+# LastEditors: ChangBin bin_chang@qq.com
+# LastEditTime: 2026-07-17
+# Copyright (c) 2026 by ChangBin, All Rights Reserved.
+# Description: 一键启动四轮麦克纳姆小车控制栈
 # -----------------------------------------------------------
 # 启动内容：
 #   1) robot_state_publisher —— 用 xacro 展开的 URDF 发布 robot_description + 静态 TF

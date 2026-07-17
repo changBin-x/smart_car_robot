@@ -1,6 +1,9 @@
-// Copyright 2026 smart_car_robot
-//
-// 协议层单元测试。协议层是纯逻辑（不碰串口、不依赖 ROS），
+// Author: ChangBin bin_chang@qq.com
+// Date: 2026-07-17
+// LastEditors: ChangBin bin_chang@qq.com
+// LastEditTime: 2026-07-17
+// Copyright (c) 2026 by ChangBin, All Rights Reserved.
+// Description: 协议层单元测试，验证指令编码、速度钳位、帧拆分与解析
 // 因此可以在 WSL2 无硬件环境下完整验证：
 //   - 指令编码格式是否与 docs/协议总结.md 一致
 //   - 速度是否正确钳位到 ±1000 mm/s

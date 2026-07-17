@@ -212,8 +212,8 @@ bool MecanumSystemHardware::validate_joints(
     bool found = false;
     for (size_t j = 0; j < info.joints.size(); ++j) {
       if (info.joints[j].name == kExpectedJointNames[motor]) {
-        // joint_index_ 在 const 方法里不能改，这里只做校验；
-        // 真正的排序映射在 export 时按名字再查一次。
+        // 这里只校验关节名存在；导出接口时会再按名字绑定内存，
+        // 因此不需要在这里保存下标映射。
         found = true;
         break;
       }

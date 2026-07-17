@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# build.sh —— 一键编译四轮麦克纳姆小车工程
+# Author: ChangBin bin_chang@qq.com
+# Date: 2026-07-17
+# LastEditors: ChangBin bin_chang@qq.com
+# LastEditTime: 2026-07-17
+# Copyright (c) 2026 by ChangBin, All Rights Reserved.
+# Description: 一键编译四轮麦克纳姆小车工程
 #
 # 用法：
 #   cd <仓库根>/scripts && ./build.sh [colcon 额外参数...]

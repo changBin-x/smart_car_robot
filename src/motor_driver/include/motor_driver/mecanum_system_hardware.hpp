@@ -1,6 +1,9 @@
-// Copyright 2026 smart_car_robot
-//
-// 硬件接口层（hardware interface layer）：
+// Author: ChangBin bin_chang@qq.com
+// Date: 2026-07-17
+// LastEditors: ChangBin bin_chang@qq.com
+// LastEditTime: 2026-07-17
+// Copyright (c) 2026 by ChangBin, All Rights Reserved.
+// Description: 硬件接口层（hardware interface layer）
 // 实现 hardware_interface::SystemInterface，是 ros2_control 框架与
 // 底层串口驱动之间的桥梁。分层关系：
 //
@@ -131,14 +134,10 @@ class MecanumSystemHardware : public hardware_interface::SystemInterface {
   // 输出轴每转编码器计数 CPR = L × G × K，on_init 时算好。
   double counts_per_rev_ = 260.0;
 
-  // ---- 关节顺序 ----
-  // 状态/命令数组固定按"驱动板电机编号"排序：
-  //   下标 0=M1 左前, 1=M2 左后, 2=M3 右前, 3=M4 右后
-  // joint_index_[i] 记录第 i 个电机对应 info_.joints 里的哪个关节，
-  // 这样 URDF 里关节写成什么顺序都能对上。
-  std::array<size_t, protocol::kMotorCount> joint_index_ = {0, 1, 2, 3};
-
   // ---- 状态/命令存储（导出给 ros2_control 的内存） ----
+  // 数组下标固定按"驱动板电机编号"排序：0=M1 左前, 1=M2 左后,
+  // 2=M3 右前, 3=M4 右后。导出接口时按 kExpectedJointNames[下标] 绑定关节名，
+  // 因此 URDF 里关节写成什么顺序都能对上，无需额外的索引映射表。
   std::array<double, protocol::kMotorCount> position_rad_ = {};
   std::array<double, protocol::kMotorCount> velocity_rad_s_ = {};
   std::array<double, protocol::kMotorCount> command_rad_s_ = {};

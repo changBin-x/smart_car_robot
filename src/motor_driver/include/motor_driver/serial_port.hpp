@@ -1,6 +1,9 @@
-// Copyright 2026 smart_car_robot
-//
-// 串口传输层（transport layer）：
+// Author: ChangBin bin_chang@qq.com
+// Date: 2026-07-17
+// LastEditors: ChangBin bin_chang@qq.com
+// LastEditTime: 2026-07-17
+// Copyright (c) 2026 by ChangBin, All Rights Reserved.
+// Description: 串口传输层（transport layer）
 // 用 Linux termios 接口封装一个"打开-读-写-关闭"的最小串口类。
 // 本层只搬运字节，不理解协议内容（协议在 protocol.hpp）。
 //

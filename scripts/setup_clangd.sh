@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# setup_clangd.sh —— 为 clangd 生成合并的 compile_commands.json
+# Author: ChangBin bin_chang@qq.com
+# Date: 2026-07-17
+# LastEditors: ChangBin bin_chang@qq.com
+# LastEditTime: 2026-07-17
+# Copyright (c) 2026 by ChangBin, All Rights Reserved.
+# Description: 为 clangd 生成合并的 compile_commands.json
 #
 # 用法：
 #   cd <仓库根>/scripts && ./setup_clangd.sh

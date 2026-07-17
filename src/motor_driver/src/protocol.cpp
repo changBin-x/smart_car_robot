@@ -1,6 +1,9 @@
-// Copyright 2026 smart_car_robot
-//
-// 协议层实现。与头文件 protocol.hpp 配对阅读。
+// Author: ChangBin bin_chang@qq.com
+// Date: 2026-07-17
+// LastEditors: ChangBin bin_chang@qq.com
+// LastEditTime: 2026-07-17
+// Copyright (c) 2026 by ChangBin, All Rights Reserved.
+// Description: 协议层实现，与 protocol.hpp 配对阅读
 
 #include "motor_driver/protocol.hpp"
 

@@ -1,6 +1,9 @@
-// Copyright 2026 smart_car_robot
-//
-// 协议层（protocol layer）：
+// Author: ChangBin bin_chang@qq.com
+// Date: 2026-07-17
+// LastEditors: ChangBin bin_chang@qq.com
+// LastEditTime: 2026-07-17
+// Copyright (c) 2026 by ChangBin, All Rights Reserved.
+// Description: 协议层（protocol layer）
 // 负责把"要发给驱动板的内容"编码成 ASCII 指令字符串，
 // 以及把驱动板上报的 ASCII 帧解析成数值。
 // 本层不接触串口、不依赖 ROS，因此可以脱离硬件做单元测试
