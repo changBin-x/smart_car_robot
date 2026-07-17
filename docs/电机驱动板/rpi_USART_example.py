@@ -11,11 +11,11 @@ import serial
 import time
 
 UPLOAD_DATA = (
-    1  # 0:不接受数据 1:接收总的编码器数据 2:接收实时的编码器 3:接收电机当前速度 mm/s
+    2  # 0:不接受数据 1:接收总的编码器数据 2:接收实时的编码器 3:接收电机当前速度 mm/s
 )
 # 0: Do not receive data 1: Receive total encoder data 2: Receive real-time encoder 3: Receive current motor speed mm/s
 
-MOTOR_TYPE = 1  # 1:520电机 2:310电机 3:测速码盘TT电机 4:TT直流减速电机 5:L型520电机
+MOTOR_TYPE = 2  # 1:520电机 2:310电机 3:测速码盘TT电机 4:TT直流减速电机 5:L型520电机
 # 1:520 motor 2:310 motor 3:speed code disc TT motor 4:TT DC reduction motor 5:L type 520 motor
 
 # 串口初始化    Serial port initialization
