@@ -1,0 +1,94 @@
+<?xml version="1.0"?>
+<!-- ============================================================
+     smartcar.ros2_control.xacro
+     =====
+     ros2_control 硬件描述宏。被 smartcar.urdf.xacro 调用。
+     根据 use_mock_hardware 参数在两种硬件插件间切换：
+       true  → mock_components/GenericSystem（WSL2 无硬件仿真，命令回环到状态）
+       false → motor_driver/MecanumSystemHardware（实机串口驱动）
+
+     四个轮关节的命名严格遵循全局约束：
+       front_left_wheel_joint / front_right_wheel_joint /
+       rear_left_wheel_joint  / rear_right_wheel_joint
+     每个关节：1 个 velocity 命令接口 + position/velocity 两个状态接口。
+     ============================================================ -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="smartcar_ros2_control"
+               params="name
+                       use_mock_hardware:=true
+                       serial_port:=/dev/ttyUSB0
+                       baud_rate:=115200
+                       wheel_radius:=0.03
+                       encoder_lines:=13
+                       gear_ratio:=20
+                       count_multiplier:=1
+                       deadzone:=1300
+                       read_timeout_ms:=15
+                       write_timeout_ms:=15
+                       max_read_misses:=20">
+
+    <ros2_control name="${name}" type="system">
+
+      <!-- ================= 硬件插件选择 ================= -->
+      <hardware>
+        <xacro:if value="${use_mock_hardware}">
+          <!-- WSL2 仿真：命令值直接镜像到状态值，无需串口 -->
+          <plugin>mock_components/GenericSystem</plugin>
+          <!-- 让 position 状态由 velocity 命令积分得到，便于观察里程计 -->
+          <param name="calculate_dynamics">true</param>
+        </xacro:if>
+        <xacro:unless value="${use_mock_hardware}">
+          <!-- 实机：自研串口硬件接口插件（任务 2） -->
+          <plugin>motor_driver/MecanumSystemHardware</plugin>
+          <!-- 以下参数全部通过 <param> 注入，绝不硬编码（全局约束 2） -->
+          <param name="serial_port">${serial_port}</param>
+          <param name="baud_rate">${baud_rate}</param>
+          <param name="motor_type">2</param>
+          <param name="encoder_lines">${encoder_lines}</param>
+          <param name="gear_ratio">${gear_ratio}</param>
+          <param name="count_multiplier">${count_multiplier}</param>
+          <param name="deadzone">${deadzone}</param>
+          <param name="wheel_radius">${wheel_radius}</param>
+          <param name="read_timeout_ms">${read_timeout_ms}</param>
+          <param name="write_timeout_ms">${write_timeout_ms}</param>
+          <param name="max_read_misses">${max_read_misses}</param>
+          <!-- 电机方向系数（实机联调时按需改 -1，见协议总结 Q5） -->
+          <param name="direction_m1">1</param>
+          <param name="direction_m2">1</param>
+          <param name="direction_m3">1</param>
+          <param name="direction_m4">1</param>
+        </xacro:unless>
+      </hardware>
+
+      <!-- ================= 四个轮关节 ================= -->
+      <!-- 关节顺序无所谓，硬件接口按关节名匹配电机编号 -->
+      <joint name="front_left_wheel_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <joint name="front_right_wheel_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <joint name="rear_left_wheel_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <joint name="rear_right_wheel_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+    </ros2_control>
+
+  </xacro:macro>
+
+</robot>
