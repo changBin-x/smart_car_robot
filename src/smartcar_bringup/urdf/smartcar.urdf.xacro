@@ -10,7 +10,7 @@
      轮子相对 base_link 的位置 = (±wheelbase/2, ±track_width/2)。
 
      注意：几何占位值（wheelbase/track_width）待实车测量后回填，
-     见 src/docs/协议总结.md §7 Q7。它们同时决定：
+     见 docs/协议总结.md §7 Q7。它们同时决定：
        1) 轮子 link 的摆放（可视化 / TF）
        2) mecanum_drive_controller 的运动学参数（controllers.yaml 里
           的 sum_of_robot_center_projection_on_X_Y_axis = lx + ly，

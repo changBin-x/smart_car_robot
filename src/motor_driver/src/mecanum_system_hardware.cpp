@@ -1,7 +1,7 @@
 // Copyright 2026 smart_car_robot
 //
 // MecanumSystemHardware 实现。与 mecanum_system_hardware.hpp 配对阅读。
-// 单位换算公式来自 src/docs/协议总结.md §5：
+// 单位换算公式来自 docs/协议总结.md §5：
 //   position [rad]   = 2π × 累计计数 / CPR
 //   velocity [rad/s] = 2π × (10ms 增量) / CPR / 0.01
 //   $spd 值 [mm/s]   = 命令 [rad/s] × r [m] × 1000

@@ -11,7 +11,7 @@
 ## 特性
 
 - **三层解耦架构**：硬件接口层、协议层、串口传输层职责分离，协议层可脱离硬件做单元测试。
-- **纯 ASCII 协议**：`$spd:...#` 下发速度，`$MAll`/`$MTEP` 解析编码器上报（详见 [协议总结](../docs/协议总结.md)）。
+- **纯 ASCII 协议**：`$spd:...#` 下发速度，`$MAll`/`$MTEP` 解析编码器上报（详见 [协议总结](../../docs/协议总结.md)）。
 - **完整生命周期**：`on_init / on_configure / on_activate / on_deactivate / on_cleanup / on_shutdown`。
 - **故障容错**：串口打开失败、通信超时、坏帧均返回 `ERROR` 并打日志，不崩溃；`on_deactivate` 与析构时自动发零速停车。
 - **参数全部可配**：串口设备名、波特率、编码器线数、减速比等通过 URDF `<param>` 注入，无硬编码。
@@ -59,7 +59,7 @@ SerialPort              ← termios 串口读写，带超时不阻塞（serial_p
 | direction_m1..m4 | double | 1 | 每个电机方向系数，取 `1` 或 `-1` |
 
 > 编码器每转计数 `CPR = encoder_lines × gear_ratio × count_multiplier`。
-> 单位换算公式见 [协议总结 §5](../docs/协议总结.md)。
+> 单位换算公式见 [协议总结 §5](../../docs/协议总结.md)。
 
 ### 配置示例
 

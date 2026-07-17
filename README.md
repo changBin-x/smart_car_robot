@@ -85,32 +85,35 @@ graph TD
 
 ## 3. 目录结构
 
-本仓库即 colcon 工作空间的 `src/` 目录，克隆后放入工作空间即可编译：
+本仓库根即 colcon 工作空间根，ROS 包位于 `src/` 下，克隆后可直接编译：
 
 ```
-smart_car_ws/                        # colcon 工作空间（自建）
-└── src/                             # ← 本仓库
-    ├── README.md                    # 本文件（项目总览）
-    ├── scripts/                     # 编译/环境脚本（clangd 配置生成等）
-    │   ├── build.sh                 #   一键编译 + 生成 compile_commands.json
-    │   └── setup_clangd.sh          #   生成 .clangd 与顶层 compile_commands.json
-    ├── docs/                        # 硬件资料与协议总结
-    │   ├── M310电机/
-    │   ├── 电机驱动板/
-    │   └── 协议总结.md
-    ├── motor_driver/                # 硬件接口插件包 (ament_cmake)
-    │   ├── include/motor_driver/    #   SystemInterface 实现 + 协议/串口分层
+smart_car_robot/                     # 仓库根 = colcon 工作空间根
+├── README.md                        # 本文件（项目总览）
+├── LICENSE
+├── .clangd                          # clangd 配置（C++20、诊断规则）
+├── scripts/                         # 编译/环境脚本
+│   ├── build.sh                     #   一键编译 + 生成 compile_commands.json
+│   ├── setup_clangd.sh              #   汇总各包编译数据库到仓库根
+│   └── README.md
+├── docs/                            # 硬件资料与协议总结
+│   ├── M310电机/
+│   ├── 电机驱动板/
+│   └── 协议总结.md
+└── src/                             # ROS 包源码目录
+    ├── motor_driver/                #   硬件接口插件包 (ament_cmake)
+    │   ├── include/motor_driver/    #     SystemInterface 实现 + 协议/串口分层
     │   ├── src/
-    │   ├── test/                    #   协议层单元测试
-    │   ├── motor_driver.xml         #   pluginlib 导出描述
+    │   ├── test/                    #     协议层单元测试
+    │   ├── motor_driver.xml         #     pluginlib 导出描述
     │   ├── README.md
     │   ├── CMakeLists.txt
     │   └── package.xml
-    └── smartcar_bringup/            # 模型 + 控制器配置 + 启动包
-        ├── urdf/                    #   xacro（底盘 + 4 轮 + ros2_control 标签）
-        ├── config/                  #   controllers.yaml
-        ├── launch/                  #   bringup launch
-        ├── doc/                     #   验证手册
+    └── smartcar_bringup/            #   模型 + 控制器配置 + 启动包
+        ├── urdf/                    #     xacro（底盘 + 4 轮 + ros2_control 标签）
+        ├── config/                  #     controllers.yaml
+        ├── launch/                  #     bringup launch
+        ├── doc/                     #     验证手册
         ├── README.md
         ├── CMakeLists.txt
         └── package.xml
@@ -155,13 +158,13 @@ Microsoft C/C++ 扩展的 IntelliSense。clangd 依赖 `compile_commands.json`
 # 安装 clangd（VS Code 另需安装 "clangd" 扩展并禁用 C/C++ 的 IntelliSense）
 sudo apt install -y clangd
 
-# 生成 .clangd 配置与顶层 compile_commands.json（在 src/scripts 下执行）
-cd ~/smart_car_ws/src/scripts
+# 生成 compile_commands.json（在仓库根的 scripts 目录下执行）
+cd ~/projects/smart_car_robot/scripts
 ./setup_clangd.sh
 ```
 
 脚本会用 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 编译，并把各包的
-`compile_commands.json` 汇总软链到仓库根，clangd 即可全量索引。
+`compile_commands.json` 汇总到仓库根，clangd 即可全量索引。
 详见 [scripts/README.md](scripts/README.md)。
 
 ### 4.2 树莓派 4B 部署机（Ubuntu 24.04 Server）
@@ -184,19 +187,20 @@ ls /dev/ttyUSB* /dev/ttyACM*
 
 ## 5. 编译与启动
 
-本仓库需放入 colcon 工作空间的 `src/` 下编译：
+本仓库根即 colcon 工作空间根，克隆后直接在仓库根编译：
 
 ```bash
-# 首次获取代码：建好工作空间并克隆本仓库到 src/
-mkdir -p ~/smart_car_ws/src
-git clone -b feature_rpi4B https://github.com/changBin-x/smart_car_robot.git ~/smart_car_ws/src
+# 首次获取代码
+mkdir -p ~/projects && cd ~/projects
+git clone -b feature_rpi4B https://github.com/changBin-x/smart_car_robot.git
+cd smart_car_robot
 
 # 方式一：使用脚本一键编译（推荐，同时生成 clangd 所需的 compile_commands.json）
-cd ~/smart_car_ws/src/scripts
+cd scripts
 ./build.sh
 
-# 方式二：手动编译（在工作空间根目录执行）
-cd ~/smart_car_ws
+# 方式二：手动编译（在仓库根执行）
+cd ~/projects/smart_car_robot
 colcon build --symlink-install
 source install/setup.bash
 ```

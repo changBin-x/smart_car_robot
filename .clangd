@@ -1,7 +1,7 @@
 # clangd 配置：四轮麦克纳姆小车工程
 # 说明：clangd 会从源文件向上查找本文件与 compile_commands.json。
-# 本仓库即 colcon 工作空间的 src/，编译数据库由 scripts/setup_clangd.sh
-# 汇总到本目录下的 compile_commands.json。
+# 本仓库根即 colcon 工作空间根，ROS 包在 src/ 下；编译数据库由
+# scripts/setup_clangd.sh 汇总到本目录（仓库根）下的 compile_commands.json。
 
 CompileFlags:
   # 编译数据库所在目录（相对本文件），即仓库根

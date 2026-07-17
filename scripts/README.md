@@ -1,7 +1,7 @@
 # scripts —— 编译与开发环境脚本
 
-本目录存放工程的编译、环境配置脚本。所有脚本假定本仓库位于 colcon 工作空间的
-`src/` 下，即目录结构为 `<工作空间>/src/scripts/`。
+本目录存放工程的编译、环境配置脚本。本仓库根即 colcon 工作空间根，ROS 包位于
+`src/` 下，目录结构为 `<仓库根>/scripts/`。
 
 ## 脚本清单
 
@@ -12,18 +12,18 @@
 
 ## build.sh
 
-一键编译，等价于在工作空间根执行
+一键编译，等价于在仓库根执行
 `colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`。
 
 ```bash
-cd <工作空间>/src/scripts
+cd <仓库根>/scripts
 ./build.sh
 
 # 可透传 colcon 参数，例如只编译指定包
 ./build.sh --packages-select motor_driver
 ```
 
-脚本自动定位工作空间根、`source /opt/ros/jazzy/setup.bash`，并在缺少 ROS 环境
+脚本自动定位仓库根、`source /opt/ros/jazzy/setup.bash`，并在缺少 ROS 环境
 时报错退出。
 
 ## setup_clangd.sh
@@ -31,18 +31,19 @@ cd <工作空间>/src/scripts
 生成 clangd 所需的合并编译数据库。
 
 ```bash
-cd <工作空间>/src/scripts
+cd <仓库根>/scripts
 ./setup_clangd.sh
 ```
 
 工作流程：
 
-1. 若工作空间尚未编译，自动调用 `build.sh`。
-2. 收集 `<工作空间>/build/*/compile_commands.json`。
-3. 合并去重后写入 `<工作空间>/src/compile_commands.json`。
+1. 若尚未编译，自动调用 `build.sh`。
+2. 收集 `<仓库根>/build/*/compile_commands.json`。
+3. 合并去重后写入 `<仓库根>/compile_commands.json`。
 
 该文件与仓库根的 [`.clangd`](../.clangd) 同目录，clangd 会从源文件向上查找并
-自动加载，从而对 `motor_driver`、`smartcar_bringup` 等所有包提供补全、跳转与诊断。
+自动加载，从而对 `src/motor_driver`、`src/smartcar_bringup` 等所有包提供补全、
+跳转与诊断。
 
 ## 关于 clangd
 
