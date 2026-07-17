@@ -1,9 +1,11 @@
-// Author: ChangBin bin_chang@qq.com
-// Date: 2026-07-17
-// LastEditors: ChangBin bin_chang@qq.com
-// LastEditTime: 2026-07-17
-// Copyright (c) 2026 by ChangBin, All Rights Reserved.
-// Description: 硬件接口层（hardware interface layer）
+/**
+ * Author: ChangBin bin_chang@qq.com
+ * Date: 2026-07-17
+ * LastEditors: ChangBin bin_chang@qq.com
+ * LastEditTime: 2026-07-17
+ * Copyright (c) 2026 by ChangBin, All Rights Reserved.
+ * Description: 硬件接口层（hardware interface layer）
+ */
 // 实现 hardware_interface::SystemInterface，是 ros2_control 框架与
 // 底层串口驱动之间的桥梁。分层关系：
 //
@@ -52,7 +54,7 @@
 namespace motor_driver {
 
 class MecanumSystemHardware : public hardware_interface::SystemInterface {
- public:
+public:
   MecanumSystemHardware() = default;
 
   // 析构兜底：无论生命周期停在哪个状态，都尽力发零速并关串口。
@@ -62,49 +64,49 @@ class MecanumSystemHardware : public hardware_interface::SystemInterface {
   // Jazzy 新签名：on_init 接收 HardwareComponentInterfaceParams
   // （内含 hardware_info 与 executor 弱引用），取代已弃用的
   // on_init(const HardwareInfo&) 重载。
-  hardware_interface::CallbackReturn on_init(
-      const hardware_interface::HardwareComponentInterfaceParams& params)
+  hardware_interface::CallbackReturn
+  on_init(const hardware_interface::HardwareComponentInterfaceParams &params)
       override;
 
-  hardware_interface::CallbackReturn on_configure(
-      const rclcpp_lifecycle::State& previous_state) override;
+  hardware_interface::CallbackReturn
+  on_configure(const rclcpp_lifecycle::State &previous_state) override;
 
-  hardware_interface::CallbackReturn on_activate(
-      const rclcpp_lifecycle::State& previous_state) override;
+  hardware_interface::CallbackReturn
+  on_activate(const rclcpp_lifecycle::State &previous_state) override;
 
-  hardware_interface::CallbackReturn on_deactivate(
-      const rclcpp_lifecycle::State& previous_state) override;
+  hardware_interface::CallbackReturn
+  on_deactivate(const rclcpp_lifecycle::State &previous_state) override;
 
-  hardware_interface::CallbackReturn on_cleanup(
-      const rclcpp_lifecycle::State& previous_state) override;
+  hardware_interface::CallbackReturn
+  on_cleanup(const rclcpp_lifecycle::State &previous_state) override;
 
-  hardware_interface::CallbackReturn on_shutdown(
-      const rclcpp_lifecycle::State& previous_state) override;
+  hardware_interface::CallbackReturn
+  on_shutdown(const rclcpp_lifecycle::State &previous_state) override;
 
   // ---- 接口导出：4 关节 × (position + velocity) 状态，velocity 命令 ----
-  std::vector<hardware_interface::StateInterface> export_state_interfaces()
-      override;
+  std::vector<hardware_interface::StateInterface>
+  export_state_interfaces() override;
 
-  std::vector<hardware_interface::CommandInterface> export_command_interfaces()
-      override;
+  std::vector<hardware_interface::CommandInterface>
+  export_command_interfaces() override;
 
   // ---- 控制循环 ----
-  hardware_interface::return_type read(
-      const rclcpp::Time& time, const rclcpp::Duration& period) override;
+  hardware_interface::return_type read(const rclcpp::Time &time,
+                                       const rclcpp::Duration &period) override;
 
-  hardware_interface::return_type write(
-      const rclcpp::Time& time, const rclcpp::Duration& period) override;
+  hardware_interface::return_type
+  write(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
- private:
+private:
   // 从 URDF <ros2_control><hardware><param> 里读参数，
   // 缺失时用默认值。数字解析失败返回 false。
-  bool load_parameters(const hardware_interface::HardwareInfo& info);
+  bool load_parameters(const hardware_interface::HardwareInfo &info);
 
   // 校验 URDF 中的关节命名/接口配置是否与本驱动的约定一致。
-  bool validate_joints(const hardware_interface::HardwareInfo& info) const;
+  bool validate_joints(const hardware_interface::HardwareInfo &info) const;
 
   // 发送一条配置指令并等待 "OK" 应答（配置类指令有应答）。
-  bool send_config_command(const std::string& command);
+  bool send_config_command(const std::string &command);
 
   // 向驱动板发零速指令（$spd:0,0,0,0#），停车用。
   // 失败只打日志不报错——停车是尽力而为的兜底动作。
@@ -119,15 +121,15 @@ class MecanumSystemHardware : public hardware_interface::SystemInterface {
   // ---- URDF <param> 参数（全部可配，不硬编码） ----
   std::string serial_port_name_ = "/dev/ttyUSB0";
   int baud_rate_ = 115200;
-  int motor_type_ = 2;          // 2 = 310 电机（协议总结 §3.1）
-  int encoder_lines_ = 13;      // 编码器基础线数 L
-  int gear_ratio_ = 20;         // 减速比 G（已确认定为 20）
-  int count_multiplier_ = 1;    // 计数倍频 K（1/2/4，实机标定）
-  int deadzone_ = 1300;         // PWM 死区（310 电机例程值）
-  double wheel_radius_m_ = 0.03;  // 轮半径 r（默认 60mm 直径）
-  int read_timeout_ms_ = 15;    // 单次 read() 串口等待上限（≤20ms）
-  int write_timeout_ms_ = 15;   // 单次 write() 串口等待上限
-  int max_read_misses_ = 20;    // 连续无有效帧的容忍周期数
+  int motor_type_ = 2;           // 2 = 310 电机（协议总结 §3.1）
+  int encoder_lines_ = 13;       // 编码器基础线数 L
+  int gear_ratio_ = 20;          // 减速比 G（已确认定为 20）
+  int count_multiplier_ = 1;     // 计数倍频 K（1/2/4，实机标定）
+  int deadzone_ = 1300;          // PWM 死区（310 电机例程值）
+  double wheel_radius_m_ = 0.03; // 轮半径 r（默认 60mm 直径）
+  int read_timeout_ms_ = 15;  // 单次 read() 串口等待上限（≤20ms）
+  int write_timeout_ms_ = 15; // 单次 write() 串口等待上限
+  int max_read_misses_ = 20;  // 连续无有效帧的容忍周期数
   // 每轮方向系数（+1/-1），处理左右侧电机镜像安装。顺序 M1~M4。
   std::array<double, protocol::kMotorCount> direction_ = {1.0, 1.0, 1.0, 1.0};
 
@@ -152,6 +154,6 @@ class MecanumSystemHardware : public hardware_interface::SystemInterface {
   int consecutive_read_misses_ = 0;
 };
 
-}  // namespace motor_driver
+} // namespace motor_driver
 
-#endif  // MOTOR_DRIVER_MECANUM_SYSTEM_HARDWARE_HPP_
+#endif // MOTOR_DRIVER_MECANUM_SYSTEM_HARDWARE_HPP_

@@ -1,9 +1,11 @@
-// Author: ChangBin bin_chang@qq.com
-// Date: 2026-07-17
-// LastEditors: ChangBin bin_chang@qq.com
-// LastEditTime: 2026-07-17
-// Copyright (c) 2026 by ChangBin, All Rights Reserved.
-// Description: 串口传输层实现，与 serial_port.hpp 配对阅读
+/**
+ * Author: ChangBin bin_chang@qq.com
+ * Date: 2026-07-17
+ * LastEditors: ChangBin bin_chang@qq.com
+ * LastEditTime: 2026-07-17
+ * Copyright (c) 2026 by ChangBin, All Rights Reserved.
+ * Description: 串口传输层实现，与 serial_port.hpp 配对阅读
+ */
 //
 // 术语速记（新手向）：
 // - 文件描述符 fd：Linux 里"打开的设备/文件"的整数句柄，-1 表示无效。
@@ -29,30 +31,30 @@ namespace {
 // 返回 0 表示不支持该波特率。
 speed_t to_termios_baud(int baud_rate) {
   switch (baud_rate) {
-    case 9600:
-      return B9600;
-    case 19200:
-      return B19200;
-    case 38400:
-      return B38400;
-    case 57600:
-      return B57600;
-    case 115200:
-      return B115200;
-    case 230400:
-      return B230400;
-    default:
-      return 0;
+  case 9600:
+    return B9600;
+  case 19200:
+    return B19200;
+  case 38400:
+    return B38400;
+  case 57600:
+    return B57600;
+  case 115200:
+    return B115200;
+  case 230400:
+    return B230400;
+  default:
+    return 0;
   }
 }
 
 std::string errno_text() { return std::strerror(errno); }
 
-}  // namespace
+} // namespace
 
 SerialPort::~SerialPort() { close(); }
 
-bool SerialPort::open(const std::string& device, int baud_rate) {
+bool SerialPort::open(const std::string &device, int baud_rate) {
   close();
 
   const speed_t baud = to_termios_baud(baud_rate);
@@ -83,12 +85,12 @@ bool SerialPort::open(const std::string& device, int baud_rate) {
 
   // 8N1 无流控。cfmakeraw 已设 8 位数据、关校验，这里显式再写一遍，
   // 让配置意图一目了然。
-  tty.c_cflag &= ~static_cast<tcflag_t>(PARENB);   // 无校验位
-  tty.c_cflag &= ~static_cast<tcflag_t>(CSTOPB);   // 1 位停止位
+  tty.c_cflag &= ~static_cast<tcflag_t>(PARENB); // 无校验位
+  tty.c_cflag &= ~static_cast<tcflag_t>(CSTOPB); // 1 位停止位
   tty.c_cflag &= ~static_cast<tcflag_t>(CSIZE);
-  tty.c_cflag |= static_cast<tcflag_t>(CS8);       // 8 位数据位
-  tty.c_cflag &= ~static_cast<tcflag_t>(CRTSCTS);  // 无硬件流控
-  tty.c_cflag |= static_cast<tcflag_t>(CREAD | CLOCAL);  // 使能接收
+  tty.c_cflag |= static_cast<tcflag_t>(CS8);            // 8 位数据位
+  tty.c_cflag &= ~static_cast<tcflag_t>(CRTSCTS);       // 无硬件流控
+  tty.c_cflag |= static_cast<tcflag_t>(CREAD | CLOCAL); // 使能接收
 
   // VMIN=0 + VTIME=0：read() 立即返回现有数据（可能 0 字节），
   // 等待逻辑完全交给 poll()。
@@ -116,7 +118,7 @@ void SerialPort::close() {
   }
 }
 
-bool SerialPort::write_all(const std::string& data,
+bool SerialPort::write_all(const std::string &data,
                            std::chrono::milliseconds timeout) {
   if (fd_ < 0) {
     last_error_ = "write on closed port";
@@ -141,7 +143,7 @@ bool SerialPort::write_all(const std::string& data,
     const int ready = ::poll(&pfd, 1, static_cast<int>(remain_ms.count()));
     if (ready < 0) {
       if (errno == EINTR) {
-        continue;  // 被信号打断不算错，重试。
+        continue; // 被信号打断不算错，重试。
       }
       last_error_ = std::string("poll(write) failed: ") + errno_text();
       return false;
@@ -214,4 +216,4 @@ void SerialPort::flush_buffers() {
   }
 }
 
-}  // namespace motor_driver
+} // namespace motor_driver

@@ -83,6 +83,7 @@ alwaysApply: true
 - **文件头部注释规范**：
 
 ```JavaScript
+// C++使用/**头部注释*/，python使用"""头部注释"""形式
 // 自动提取当前git config中的: 用户名、邮箱
 "Author": "git config user.name && git config user.email", // 同时获取用户名与邮箱
 "Date": "Do not edit", // 文件创建时间，年月日时分秒

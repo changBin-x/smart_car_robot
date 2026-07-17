@@ -1,7 +1,13 @@
-// Copyright 2026 smart_car_robot
-//
-// MecanumSystemHardware 实现。与 mecanum_system_hardware.hpp 配对阅读。
-// 单位换算公式来自 docs/协议总结.md §5：
+/**
+ * Author: ChangBin bin_chang@qq.com
+ * Date: 2026-07-17
+ * LastEditors: ChangBin bin_chang@qq.com
+ * LastEditTime: 2026-07-17
+ * Copyright (c) 2026 by ChangBin, All Rights Reserved.
+ * Description: MecanumSystemHardware 实现，与 mecanum_system_hardware.hpp
+ * 配对阅读
+ */
+// 配对阅读 单位换算公式来自 docs/协议总结.md §5：
 //   position [rad]   = 2π × 累计计数 / CPR
 //   velocity [rad/s] = 2π × (10ms 增量) / CPR / 0.01
 //   $spd 值 [mm/s]   = 命令 [rad/s] × r [m] × 1000
@@ -23,7 +29,7 @@ namespace {
 
 // 本驱动约定的关节名 → 驱动板电机编号（协议总结 §2 的映射表）。
 // 数组下标即电机下标：0=M1 左前, 1=M2 左后, 2=M3 右前, 3=M4 右后。
-constexpr std::array<const char*, protocol::kMotorCount> kExpectedJointNames =
+constexpr std::array<const char *, protocol::kMotorCount> kExpectedJointNames =
     {"front_left_wheel_joint", "rear_left_wheel_joint",
      "front_right_wheel_joint", "rear_right_wheel_joint"};
 
@@ -38,9 +44,9 @@ constexpr std::chrono::milliseconds kConfigReplyTimeout{200};
 
 // 从 <param> 表中取整数/浮点参数的小工具。key 不存在返回默认值；
 // 存在但解析失败返回 nullopt（让上层报错，避免静默用错参数）。
-std::optional<int> get_int_param(
-    const std::unordered_map<std::string, std::string>& params,
-    const std::string& key, int default_value) {
+std::optional<int>
+get_int_param(const std::unordered_map<std::string, std::string> &params,
+              const std::string &key, int default_value) {
   const auto it = params.find(key);
   if (it == params.end()) {
     return default_value;
@@ -52,14 +58,14 @@ std::optional<int> get_int_param(
       return std::nullopt;
     }
     return value;
-  } catch (const std::exception&) {
+  } catch (const std::exception &) {
     return std::nullopt;
   }
 }
 
-std::optional<double> get_double_param(
-    const std::unordered_map<std::string, std::string>& params,
-    const std::string& key, double default_value) {
+std::optional<double>
+get_double_param(const std::unordered_map<std::string, std::string> &params,
+                 const std::string &key, double default_value) {
   const auto it = params.find(key);
   if (it == params.end()) {
     return default_value;
@@ -71,12 +77,12 @@ std::optional<double> get_double_param(
       return std::nullopt;
     }
     return value;
-  } catch (const std::exception&) {
+  } catch (const std::exception &) {
     return std::nullopt;
   }
 }
 
-}  // namespace
+} // namespace
 
 MecanumSystemHardware::~MecanumSystemHardware() {
   // 兜底：进程退出前尽力停车，防止小车带着最后一条速度指令跑飞。
@@ -91,7 +97,7 @@ rclcpp::Logger MecanumSystemHardware::logger() const {
 }
 
 hardware_interface::CallbackReturn MecanumSystemHardware::on_init(
-    const hardware_interface::HardwareComponentInterfaceParams& params) {
+    const hardware_interface::HardwareComponentInterfaceParams &params) {
   // 先让基类解析 params（填充 info_、绑定 executor 等）。
   if (SystemInterface::on_init(params) !=
       hardware_interface::CallbackReturn::SUCCESS) {
@@ -99,7 +105,7 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_init(
   }
 
   // 后续校验一律以基类解析好的 HardwareInfo 为准。
-  const hardware_interface::HardwareInfo& info = get_hardware_info();
+  const hardware_interface::HardwareInfo &info = get_hardware_info();
 
   if (!load_parameters(info)) {
     return hardware_interface::CallbackReturn::ERROR;
@@ -124,16 +130,15 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_init(
   velocity_rad_s_.fill(0.0);
   command_rad_s_.fill(0.0);
 
-  RCLCPP_INFO(logger(),
-              "initialized: port=%s baud=%d CPR=%.1f wheel_radius=%.3fm",
-              serial_port_name_.c_str(), baud_rate_, counts_per_rev_,
-              wheel_radius_m_);
+  RCLCPP_INFO(
+      logger(), "initialized: port=%s baud=%d CPR=%.1f wheel_radius=%.3fm",
+      serial_port_name_.c_str(), baud_rate_, counts_per_rev_, wheel_radius_m_);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 bool MecanumSystemHardware::load_parameters(
-    const hardware_interface::HardwareInfo& info) {
-  const auto& params = info.hardware_parameters;
+    const hardware_interface::HardwareInfo &info) {
+  const auto &params = info.hardware_parameters;
 
   // 字符串参数直接取。
   const auto port_it = params.find("serial_port");
@@ -143,8 +148,8 @@ bool MecanumSystemHardware::load_parameters(
 
   // 数值参数逐个取；任何一个解析失败都算配置错误。
   struct IntItem {
-    const char* key;
-    int* target;
+    const char *key;
+    int *target;
   };
   const IntItem int_items[] = {
       {"baud_rate", &baud_rate_},
@@ -157,11 +162,10 @@ bool MecanumSystemHardware::load_parameters(
       {"write_timeout_ms", &write_timeout_ms_},
       {"max_read_misses", &max_read_misses_},
   };
-  for (const auto& item : int_items) {
+  for (const auto &item : int_items) {
     const auto value = get_int_param(params, item.key, *item.target);
     if (!value.has_value()) {
-      RCLCPP_ERROR(logger(), "parameter '%s' is not a valid integer",
-                   item.key);
+      RCLCPP_ERROR(logger(), "parameter '%s' is not a valid integer", item.key);
       return false;
     }
     *item.target = *value;
@@ -176,7 +180,7 @@ bool MecanumSystemHardware::load_parameters(
   wheel_radius_m_ = *radius;
 
   // 方向系数：4 个 ±1，键名 direction_m1 ~ direction_m4。
-  const std::array<const char*, protocol::kMotorCount> direction_keys = {
+  const std::array<const char *, protocol::kMotorCount> direction_keys = {
       "direction_m1", "direction_m2", "direction_m3", "direction_m4"};
   for (int i = 0; i < protocol::kMotorCount; ++i) {
     const auto value =
@@ -200,7 +204,7 @@ bool MecanumSystemHardware::load_parameters(
 }
 
 bool MecanumSystemHardware::validate_joints(
-    const hardware_interface::HardwareInfo& info) const {
+    const hardware_interface::HardwareInfo &info) const {
   if (info.joints.size() != protocol::kMotorCount) {
     RCLCPP_ERROR(logger(), "expected %d joints in <ros2_control>, got %zu",
                  protocol::kMotorCount, info.joints.size());
@@ -212,8 +216,8 @@ bool MecanumSystemHardware::validate_joints(
     bool found = false;
     for (size_t j = 0; j < info.joints.size(); ++j) {
       if (info.joints[j].name == kExpectedJointNames[motor]) {
-        // 这里只校验关节名存在；导出接口时会再按名字绑定内存，
-        // 因此不需要在这里保存下标映射。
+        // joint_index_ 在 const 方法里不能改，这里只做校验；
+        // 真正的排序映射在 export 时按名字再查一次。
         found = true;
         break;
       }
@@ -226,7 +230,7 @@ bool MecanumSystemHardware::validate_joints(
   }
 
   // 每个关节必须恰好是 1 个 velocity 命令 + position/velocity 两个状态。
-  for (const auto& joint : info.joints) {
+  for (const auto &joint : info.joints) {
     if (joint.command_interfaces.size() != 1 ||
         joint.command_interfaces[0].name !=
             hardware_interface::HW_IF_VELOCITY) {
@@ -277,7 +281,7 @@ MecanumSystemHardware::export_command_interfaces() {
 }
 
 hardware_interface::CallbackReturn MecanumSystemHardware::on_configure(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
+    const rclcpp_lifecycle::State & /*previous_state*/) {
   if (!serial_.open(serial_port_name_, baud_rate_)) {
     RCLCPP_ERROR(logger(), "failed to open serial port: %s",
                  serial_.last_error().c_str());
@@ -293,7 +297,7 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_configure(
       protocol::make_wheel_diameter_command(wheel_radius_m_ * 2000.0),
       protocol::make_deadzone_command(deadzone_),
   };
-  for (const auto& command : config_commands) {
+  for (const auto &command : config_commands) {
     if (!send_config_command(command)) {
       RCLCPP_ERROR(logger(), "board did not acknowledge config command '%s'",
                    command.c_str());
@@ -307,7 +311,7 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_configure(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-bool MecanumSystemHardware::send_config_command(const std::string& command) {
+bool MecanumSystemHardware::send_config_command(const std::string &command) {
   serial_.flush_buffers();
   if (!serial_.write_all(command,
                          std::chrono::milliseconds(write_timeout_ms_))) {
@@ -318,8 +322,7 @@ bool MecanumSystemHardware::send_config_command(const std::string& command) {
 
   // 配置指令的应答形如 "$mtype:2#OK"。只要在窗口期内看到 "OK" 即认可。
   std::string reply;
-  const auto deadline =
-      std::chrono::steady_clock::now() + kConfigReplyTimeout;
+  const auto deadline = std::chrono::steady_clock::now() + kConfigReplyTimeout;
   while (std::chrono::steady_clock::now() < deadline) {
     reply += serial_.read_available(std::chrono::milliseconds(20));
     if (reply.find("OK") != std::string::npos) {
@@ -330,7 +333,7 @@ bool MecanumSystemHardware::send_config_command(const std::string& command) {
 }
 
 hardware_interface::CallbackReturn MecanumSystemHardware::on_activate(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
+    const rclcpp_lifecycle::State & /*previous_state*/) {
   // 丢掉激活前堆积的旧上报，从干净状态开始。
   serial_.flush_buffers();
   assembler_.clear();
@@ -355,7 +358,7 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_activate(
 }
 
 hardware_interface::CallbackReturn MecanumSystemHardware::on_deactivate(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
+    const rclcpp_lifecycle::State & /*previous_state*/) {
   send_stop_command();
 
   // 关闭上报，让串口安静下来。失败不阻止去激活。
@@ -372,7 +375,7 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_deactivate(
 }
 
 hardware_interface::CallbackReturn MecanumSystemHardware::on_cleanup(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
+    const rclcpp_lifecycle::State & /*previous_state*/) {
   if (serial_.is_open()) {
     send_stop_command();
     serial_.close();
@@ -381,7 +384,7 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_cleanup(
 }
 
 hardware_interface::CallbackReturn MecanumSystemHardware::on_shutdown(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
+    const rclcpp_lifecycle::State & /*previous_state*/) {
   if (serial_.is_open()) {
     send_stop_command();
     serial_.close();
@@ -392,16 +395,16 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_shutdown(
 void MecanumSystemHardware::send_stop_command() {
   const std::array<int, protocol::kMotorCount> zeros = {0, 0, 0, 0};
   // 停车指令多给一点时间（2 倍写超时），提高送达概率。
-  if (!serial_.write_all(
-          protocol::make_speed_command(zeros),
-          std::chrono::milliseconds(write_timeout_ms_ * 2))) {
+  if (!serial_.write_all(protocol::make_speed_command(zeros),
+                         std::chrono::milliseconds(write_timeout_ms_ * 2))) {
     RCLCPP_WARN(logger(), "failed to send stop command: %s",
                 serial_.last_error().c_str());
   }
 }
 
-hardware_interface::return_type MecanumSystemHardware::read(
-    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
+hardware_interface::return_type
+MecanumSystemHardware::read(const rclcpp::Time & /*time*/,
+                            const rclcpp::Duration & /*period*/) {
   // 1) 收字节。超时内无数据返回空串，是正常情况。
   const std::string bytes =
       serial_.read_available(std::chrono::milliseconds(read_timeout_ms_));
@@ -418,7 +421,7 @@ hardware_interface::return_type MecanumSystemHardware::read(
   bool got_delta = false;
   protocol::QuadCounts latest_total = {};
   protocol::QuadCounts latest_delta = {};
-  for (const std::string& frame : assembler_.take_frames()) {
+  for (const std::string &frame : assembler_.take_frames()) {
     if (const auto counts = protocol::parse_counts(frame, "MAll")) {
       latest_total = *counts;
       got_total = true;
@@ -428,8 +431,7 @@ hardware_interface::return_type MecanumSystemHardware::read(
     } else {
       // 既不是 MAll 也不是 MTEP：可能是坏帧，也可能是配置应答残留。
       // 记 DEBUG 日志后忽略，不影响本周期其余帧。
-      RCLCPP_DEBUG(logger(), "ignoring unparsable frame: '%s'",
-                   frame.c_str());
+      RCLCPP_DEBUG(logger(), "ignoring unparsable frame: '%s'", frame.c_str());
     }
   }
 
@@ -450,9 +452,8 @@ hardware_interface::return_type MecanumSystemHardware::read(
   }
   if (got_delta) {
     for (int m = 0; m < protocol::kMotorCount; ++m) {
-      const double revs_per_sec =
-          static_cast<double>(latest_delta[m]) / counts_per_rev_ /
-          kDeltaPeriodSec;
+      const double revs_per_sec = static_cast<double>(latest_delta[m]) /
+                                  counts_per_rev_ / kDeltaPeriodSec;
       velocity_rad_s_[m] = direction_[m] * revs_per_sec * kTwoPi;
     }
   }
@@ -474,21 +475,21 @@ hardware_interface::return_type MecanumSystemHardware::read(
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type MecanumSystemHardware::write(
-    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
+hardware_interface::return_type
+MecanumSystemHardware::write(const rclcpp::Time & /*time*/,
+                             const rclcpp::Duration & /*period*/) {
   // rad/s → mm/s：v = ω × r × 1000（协议总结 §5.3），再乘方向系数。
   std::array<int, protocol::kMotorCount> speed_mm_s = {};
   for (int m = 0; m < protocol::kMotorCount; ++m) {
     const double command = command_rad_s_[m];
     // NaN 防御：控制器异常时可能写入 NaN，直接当 0 处理。
     const double safe_command = std::isfinite(command) ? command : 0.0;
-    speed_mm_s[m] = static_cast<int>(std::lround(
-        direction_[m] * safe_command * wheel_radius_m_ * 1000.0));
+    speed_mm_s[m] = static_cast<int>(
+        std::lround(direction_[m] * safe_command * wheel_radius_m_ * 1000.0));
   }
 
-  if (!serial_.write_all(
-          protocol::make_speed_command(speed_mm_s),
-          std::chrono::milliseconds(write_timeout_ms_))) {
+  if (!serial_.write_all(protocol::make_speed_command(speed_mm_s),
+                         std::chrono::milliseconds(write_timeout_ms_))) {
     RCLCPP_ERROR(logger(), "serial write error: %s",
                  serial_.last_error().c_str());
     return hardware_interface::return_type::ERROR;
@@ -496,7 +497,7 @@ hardware_interface::return_type MecanumSystemHardware::write(
   return hardware_interface::return_type::OK;
 }
 
-}  // namespace motor_driver
+} // namespace motor_driver
 
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(motor_driver::MecanumSystemHardware,

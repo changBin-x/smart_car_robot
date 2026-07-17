@@ -1,9 +1,11 @@
-// Author: ChangBin bin_chang@qq.com
-// Date: 2026-07-17
-// LastEditors: ChangBin bin_chang@qq.com
-// LastEditTime: 2026-07-17
-// Copyright (c) 2026 by ChangBin, All Rights Reserved.
-// Description: 协议层单元测试，验证指令编码、速度钳位、帧拆分与解析
+/**
+ * Author: ChangBin bin_chang@qq.com
+ * Date: 2026-07-17
+ * LastEditors: ChangBin bin_chang@qq.com
+ * LastEditTime: 2026-07-17
+ * Copyright (c) 2026 by ChangBin, All Rights Reserved.
+ * Description: 协议层单元测试，验证指令编码、速度钳位、帧拆分与解析
+ */
 // 因此可以在 WSL2 无硬件环境下完整验证：
 //   - 指令编码格式是否与 docs/协议总结.md 一致
 //   - 速度是否正确钳位到 ±1000 mm/s
@@ -135,11 +137,11 @@ TEST(ParseCounts, RejectsEmptyField) {
   EXPECT_FALSE(parse_counts("$MAll:,2,3,4#", "MAll").has_value());
 }
 
-}  // namespace
-}  // namespace protocol
-}  // namespace motor_driver
+} // namespace
+} // namespace protocol
+} // namespace motor_driver
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

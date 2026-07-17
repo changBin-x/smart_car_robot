@@ -1,25 +1,27 @@
-# Author: ChangBin bin_chang@qq.com
-# Date: 2026-07-17
-# LastEditors: ChangBin bin_chang@qq.com
-# LastEditTime: 2026-07-17
-# Copyright (c) 2026 by ChangBin, All Rights Reserved.
-# Description: 一键启动四轮麦克纳姆小车控制栈
-# -----------------------------------------------------------
-# 启动内容：
-#   1) robot_state_publisher —— 用 xacro 展开的 URDF 发布 robot_description + 静态 TF
-#   2) controller_manager    —— ros2_control 核心，加载硬件插件
-#   3) joint_state_broadcaster（spawner）
-#   4) mecanum_drive_controller（spawner，等 broadcaster 起来后再加载）
-#
-# launch 参数：
-#   use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
-#   serial_port       (默认 /dev/ttyUSB0)：实机串口设备名
-#   baud_rate         (默认 115200)
-#
-# 用法：
-#   WSL2 仿真：ros2 launch smartcar_bringup smartcar.launch.py
-#   实机：     ros2 launch smartcar_bringup smartcar.launch.py \
-#                  use_mock_hardware:=false serial_port:=/dev/ttyUSB0
+"""
+Author: ChangBin bin_chang@qq.com
+Date: 2026-07-17
+LastEditors: ChangBin bin_chang@qq.com
+LastEditTime: 2026-07-17
+Copyright (c) 2026 by ChangBin, All Rights Reserved.
+Description: 一键启动四轮麦克纳姆小车控制栈
+-----------------------------------------------------------
+启动内容：
+  1) robot_state_publisher —— 用 xacro 展开的 URDF 发布 robot_description + 静态 TF
+  2) controller_manager    —— ros2_control 核心，加载硬件插件
+  3) joint_state_broadcaster（spawner）
+  4) mecanum_drive_controller（spawner，等 broadcaster 起来后再加载）
+
+launch 参数：
+  use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
+  serial_port       (默认 /dev/ttyUSB0)：实机串口设备名
+  baud_rate         (默认 115200)
+
+用法：
+  WSL2 仿真：ros2 launch smartcar_bringup smartcar.launch.py
+  实机：     ros2 launch smartcar_bringup smartcar.launch.py \
+                use_mock_hardware:=false serial_port:=/dev/ttyUSB0
+"""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler
@@ -85,14 +87,10 @@ def generate_launch_description():
         ]
     )
     robot_description = {
-        "robot_description": ParameterValue(
-            robot_description_content, value_type=str
-        )
+        "robot_description": ParameterValue(robot_description_content, value_type=str)
     }
 
-    controllers_file = PathJoinSubstitution(
-        [pkg_share, "config", "controllers.yaml"]
-    )
+    controllers_file = PathJoinSubstitution([pkg_share, "config", "controllers.yaml"])
 
     # ---------------- 节点定义 ----------------
     robot_state_publisher = Node(
