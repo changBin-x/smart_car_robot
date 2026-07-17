@@ -2,10 +2,15 @@
 /compile_commands.json
 .cache/
 
-# 若在本目录误建 colcon 产物
+# colcon 编译产物
 /build/
 /install/
 /log/
 
-# 编辑器
+# 编辑器与本地配置
+.vscode/
 *.user
+
+# 项目内部文件（任务清单、私有规范），不随仓库分发
+/temp.md
+/CLAUDE.md
