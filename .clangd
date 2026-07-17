@@ -5,7 +5,7 @@
 
 CompileFlags:
   # 编译数据库所在目录（相对本文件），即仓库根
-  CompilationDatabase: .
+  CompilationDatabase: ./build/
   # 强制 C++20（硬件接口用到 <numbers>），并统一用 clang 前端解析
   Add:
     - -std=c++20

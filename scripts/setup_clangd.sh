@@ -43,7 +43,7 @@ fi
 echo "[clangd] 合并 ${#DBS[@]} 个编译数据库……"
 
 # ---- 用 python3 合并去重，写入仓库根 ----
-OUT="$WS_DIR/compile_commands.json"
+OUT="$WS_DIR/build/compile_commands.json"
 python3 - "$OUT" "${DBS[@]}" <<'PY'
 import json
 import sys
