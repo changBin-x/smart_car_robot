@@ -7,7 +7,7 @@
  * Description: MecanumSystemHardware 实现，与 mecanum_system_hardware.hpp
  * 配对阅读
  */
-// 配对阅读 单位换算公式来自 docs/协议总结.md §5：
+// 单位换算公式来自 docs/协议总结.md §5：
 //   position [rad]   = 2π × 累计计数 / CPR
 //   velocity [rad/s] = 2π × (10ms 增量) / CPR / 0.01
 //   $spd 值 [mm/s]   = 命令 [rad/s] × r [m] × 1000
@@ -216,8 +216,8 @@ bool MecanumSystemHardware::validate_joints(
     bool found = false;
     for (size_t j = 0; j < info.joints.size(); ++j) {
       if (info.joints[j].name == kExpectedJointNames[motor]) {
-        // joint_index_ 在 const 方法里不能改，这里只做校验；
-        // 真正的排序映射在 export 时按名字再查一次。
+        // 这里只校验关节名存在；导出接口时会再按名字绑定内存，
+        // 因此不需要在这里保存下标映射。
         found = true;
         break;
       }
