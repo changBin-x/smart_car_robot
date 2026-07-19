@@ -26,7 +26,8 @@
                        deadzone:=1300
                        read_timeout_ms:=15
                        write_timeout_ms:=15
-                       max_read_misses:=20">
+                       max_read_misses:=20
+                       battery_poll_period_ms:=1000">
 
     <ros2_control name="${name}" type="system">
 
@@ -53,10 +54,13 @@
           <param name="read_timeout_ms">${read_timeout_ms}</param>
           <param name="write_timeout_ms">${write_timeout_ms}</param>
           <param name="max_read_misses">${max_read_misses}</param>
-          <!-- 电机方向系数（实机联调时按需改 -1，见协议总结 Q5） -->
+          <param name="battery_poll_period_ms">${battery_poll_period_ms}</param>
+          <!-- 电机方向系数（实机联调标定，见验证手册 §3）
+               接线：M1 右前 / M2 左前 / M3 右后 / M4 左后
+               2026-07-19 台架复现：前进指令下左前、右后物理转向与期望相反 → m2/m3 = -1 -->
           <param name="direction_m1">1</param>
-          <param name="direction_m2">1</param>
-          <param name="direction_m3">1</param>
+          <param name="direction_m2">-1</param>
+          <param name="direction_m3">-1</param>
           <param name="direction_m4">1</param>
         </xacro:unless>
       </hardware>
@@ -86,6 +90,13 @@
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
+
+      <!-- ================= 电池传感器 ================= -->
+      <!-- battery_state_broadcaster 认领 voltage 状态接口，发布
+           sensor_msgs/BatteryState 到 /battery_state -->
+      <sensor name="battery_state">
+        <state_interface name="voltage"/>
+      </sensor>
 
     </ros2_control>
 

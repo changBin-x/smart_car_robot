@@ -27,6 +27,9 @@ controller_manager:
     mecanum_drive_controller:
       type: mecanum_drive_controller/MecanumDriveController
 
+    battery_state_broadcaster:
+      type: battery_state_broadcaster/BatteryStateBroadcaster
+
 # ---------------- joint_state_broadcaster ----------------
 joint_state_broadcaster:
   ros__parameters:
@@ -66,3 +69,14 @@ mecanum_drive_controller:
     # ---- 协方差（里程计不确定度，仿真下用默认经验值）----
     twist_covariance_diagonal: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     pose_covariance_diagonal: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+# ---------------- battery_state_broadcaster ----------------
+# 认领 URDF sensor "battery_state" 的 voltage 状态接口，
+# 发布 sensor_msgs/BatteryState（默认可 remap 为 /battery_state）。
+battery_state_broadcaster:
+  ros__parameters:
+    sensor_name: "battery_state"
+    # 2S 锂电典型标称容量占位（Ah）；驱动板只回报电压，容量供消息字段填充。
+    design_capacity: 2.0
+    # sensor_msgs/BatteryState::POWER_SUPPLY_TECHNOLOGY_LION = 2
+    power_supply_technology: 2

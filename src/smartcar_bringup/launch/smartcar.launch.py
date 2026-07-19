@@ -2,7 +2,7 @@
 Author: ChangBin bin_chang@qq.com
 Date: 2026-07-17
 LastEditors: ChangBin bin_chang@qq.com
-LastEditTime: 2026-07-17
+LastEditTime: 2026-07-19
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
 Description: 一键启动四轮麦克纳姆小车控制栈
 -----------------------------------------------------------
@@ -11,6 +11,7 @@ Description: 一键启动四轮麦克纳姆小车控制栈
   2) controller_manager    —— ros2_control 核心，加载硬件插件
   3) joint_state_broadcaster（spawner）
   4) mecanum_drive_controller（spawner，等 broadcaster 起来后再加载）
+  5) battery_state_broadcaster（spawner，发布 /battery_state）
 
 launch 参数：
   use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
@@ -106,6 +107,10 @@ def generate_launch_description():
         output="both",
         # controller_manager 同时需要 robot_description 和 controllers.yaml
         parameters=[robot_description, controllers_file],
+        # broadcaster 发布 ~/battery_state；统一 remap 到全局 /battery_state
+        remappings=[
+            ("/battery_state_broadcaster/battery_state", "/battery_state"),
+        ],
     )
 
     joint_state_broadcaster_spawner = Node(
@@ -137,12 +142,34 @@ def generate_launch_description():
         ],
     )
 
+    battery_state_broadcaster_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "battery_state_broadcaster",
+            "--controller-manager",
+            "/controller_manager",
+            "--controller-manager-timeout",
+            "60",
+            "--service-call-timeout",
+            "60",
+        ],
+    )
+
     # 先起 joint_state_broadcaster，退出（=加载成功）后再起运动控制器，
     # 避免两个 spawner 并发抢 controller_manager 服务导致偶发失败。
     delay_mecanum_after_jsb = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=joint_state_broadcaster_spawner,
             on_exit=[mecanum_controller_spawner],
+        )
+    )
+
+    # 电池广播器与运动控制器无接口冲突，可在 JSB 成功后并行拉起。
+    delay_battery_after_jsb = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=joint_state_broadcaster_spawner,
+            on_exit=[battery_state_broadcaster_spawner],
         )
     )
 
@@ -161,6 +188,7 @@ def generate_launch_description():
             control_node,
             joint_state_broadcaster_spawner,
             delay_mecanum_after_jsb,
+            delay_battery_after_jsb,
             rviz_node,
         ]
     )

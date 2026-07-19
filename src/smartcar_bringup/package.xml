@@ -18,6 +18,7 @@
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>mecanum_drive_controller</exec_depend>
   <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>battery_state_broadcaster</exec_depend>
   <exec_depend>hardware_interface</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>xacro</exec_depend>
@@ -29,6 +30,7 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>teleop_twist_keyboard</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
