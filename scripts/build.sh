@@ -46,5 +46,4 @@ colcon build \
   --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
   "$@"
 
-echo "[build] 编译完成。后续可执行：source $WS_DIR/install/setup.bash"
-echo "[build] 如需刷新 clangd 索引，运行：$SCRIPT_DIR/setup_clangd.sh"
+echo "[build] 编译完成。后续可执行：source $WS_DIR/install/setup.zsh"
