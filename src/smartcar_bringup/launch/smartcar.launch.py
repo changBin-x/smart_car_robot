@@ -107,10 +107,6 @@ def generate_launch_description():
         output="both",
         # controller_manager 同时需要 robot_description 和 controllers.yaml
         parameters=[robot_description, controllers_file],
-        # broadcaster 发布 ~/battery_state；统一 remap 到全局 /battery_state
-        remappings=[
-            ("/battery_state_broadcaster/battery_state", "/battery_state"),
-        ],
     )
 
     joint_state_broadcaster_spawner = Node(
@@ -153,6 +149,9 @@ def generate_launch_description():
             "60",
             "--service-call-timeout",
             "60",
+            # 将控制器节点的 ~/battery_state remap 到全局 /battery_state
+            "--controller-ros-args",
+            "-r ~/battery_state:=/battery_state",
         ],
     )
 
