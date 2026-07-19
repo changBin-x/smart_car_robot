@@ -2,7 +2,7 @@
  * Author: ChangBin bin_chang@qq.com
  * Date: 2026-07-17
  * LastEditors: ChangBin bin_chang@qq.com
- * LastEditTime: 2026-07-17
+ * LastEditTime: 2026-07-19
  * Copyright (c) 2026 by ChangBin, All Rights Reserved.
  * Description: 协议层实现，与 protocol.hpp 配对阅读
  */
@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
@@ -92,6 +93,8 @@ std::string make_deadzone_command(int deadzone) {
   return "$deadzone:" + std::to_string(deadzone) + "#";
 }
 
+std::string make_read_voltage_command() { return "$read_vol#"; }
+
 void FrameAssembler::append(const std::string &bytes) {
   buffer_ += bytes;
   // 缓冲过长说明一直没有收到帧尾，只保留最近的数据。
@@ -155,6 +158,40 @@ std::optional<QuadCounts> parse_counts(const std::string &frame,
     field_begin = field_end + 1;
   }
   return counts;
+}
+
+std::optional<double> parse_battery_voltage(const std::string &frame) {
+  // 期望格式："$Battery:<number>V#"，例如 "$Battery:7.40V#"。
+  constexpr const char *kPrefix = "$Battery:";
+  constexpr char kUnit = 'V';
+  const size_t prefix_len = std::char_traits<char>::length(kPrefix);
+
+  if (frame.size() < prefix_len + 2 || frame.back() != kFrameEnd ||
+      frame.compare(0, prefix_len, kPrefix) != 0) {
+    return std::nullopt;
+  }
+
+  // 掐掉 "$Battery:" 与尾部 '#'，得到 "7.40V"。
+  const std::string payload =
+      frame.substr(prefix_len, frame.size() - prefix_len - 1);
+  if (payload.empty() || payload.back() != kUnit) {
+    return std::nullopt;
+  }
+
+  const std::string number = payload.substr(0, payload.size() - 1);
+  if (number.empty()) {
+    return std::nullopt;
+  }
+
+  // 严格解析：整串必须是合法浮点数，不允许尾随垃圾字符。
+  errno = 0;
+  char *end = nullptr;
+  const double volts = std::strtod(number.c_str(), &end);
+  if (errno != 0 || end != number.c_str() + number.size() ||
+      !std::isfinite(volts) || volts < 0.0) {
+    return std::nullopt;
+  }
+  return volts;
 }
 
 } // namespace protocol

@@ -2,7 +2,7 @@
  * Author: ChangBin bin_chang@qq.com
  * Date: 2026-07-17
  * LastEditors: ChangBin bin_chang@qq.com
- * LastEditTime: 2026-07-17
+ * LastEditTime: 2026-07-19
  * Copyright (c) 2026 by ChangBin, All Rights Reserved.
  * Description: 协议层单元测试，验证指令编码、速度钳位、帧拆分与解析
  */
@@ -135,6 +135,56 @@ TEST(ParseCounts, RejectsNonInteger) {
 
 TEST(ParseCounts, RejectsEmptyField) {
   EXPECT_FALSE(parse_counts("$MAll:,2,3,4#", "MAll").has_value());
+}
+
+// ---------------- 电池电压 ----------------
+
+TEST(MakeReadVoltageCommand, ExactFrame) {
+  EXPECT_EQ(make_read_voltage_command(), "$read_vol#");
+}
+
+TEST(ParseBatteryVoltage, ParsesValidFrame) {
+  const auto volts = parse_battery_voltage("$Battery:7.40V#");
+  ASSERT_TRUE(volts.has_value());
+  EXPECT_DOUBLE_EQ(*volts, 7.40);
+}
+
+TEST(ParseBatteryVoltage, ParsesIntegerVolts) {
+  const auto volts = parse_battery_voltage("$Battery:8V#");
+  ASSERT_TRUE(volts.has_value());
+  EXPECT_DOUBLE_EQ(*volts, 8.0);
+}
+
+TEST(ParseBatteryVoltage, RejectsMissingUnit) {
+  EXPECT_FALSE(parse_battery_voltage("$Battery:7.40#").has_value());
+}
+
+TEST(ParseBatteryVoltage, RejectsWrongPrefix) {
+  EXPECT_FALSE(parse_battery_voltage("$Batt:7.40V#").has_value());
+}
+
+TEST(ParseBatteryVoltage, RejectsMissingTerminator) {
+  EXPECT_FALSE(parse_battery_voltage("$Battery:7.40V").has_value());
+}
+
+TEST(ParseBatteryVoltage, RejectsNonNumeric) {
+  EXPECT_FALSE(parse_battery_voltage("$Battery:abcV#").has_value());
+}
+
+TEST(ParseBatteryVoltage, RejectsTrailingGarbage) {
+  EXPECT_FALSE(parse_battery_voltage("$Battery:7.40xV#").has_value());
+}
+
+TEST(FrameAssembler, AssemblesBatteryFrameAcrossChunks) {
+  FrameAssembler assembler;
+  assembler.append("$Battery:7.");
+  EXPECT_TRUE(assembler.take_frames().empty());
+  assembler.append("40V#");
+  const auto frames = assembler.take_frames();
+  ASSERT_EQ(frames.size(), 1u);
+  const auto volts = parse_battery_voltage(frames[0]);
+  ASSERT_TRUE(volts.has_value());
+  EXPECT_DOUBLE_EQ(*volts, 7.40);
 }
 
 } // namespace

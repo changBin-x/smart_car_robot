@@ -2,7 +2,7 @@
  * Author: ChangBin bin_chang@qq.com
  * Date: 2026-07-17
  * LastEditors: ChangBin bin_chang@qq.com
- * LastEditTime: 2026-07-17
+ * LastEditTime: 2026-07-19
  * Copyright (c) 2026 by ChangBin, All Rights Reserved.
  * Description: 协议层（protocol layer）
  */
@@ -13,8 +13,10 @@
 //
 // 协议格式速查（完整说明见 docs/协议总结.md）：
 //   下发指令：  $spd:100,-100,0,50#      控制 4 个电机速度，单位 mm/s
+//               $read_vol#               查询电池电压
 //   上报帧：    $MAll:m1,m2,m3,m4#       累计编码器计数（用于算位置）
 //               $MTEP:m1,m2,m3,m4#       每 10 ms 编码器增量（用于算速度）
+//               $Battery:7.40V#          电池电压应答（单位 V）
 // 每帧以 '$' 开始、'#' 结束，字段用 ',' 分隔；协议没有 CRC，
 // 只能靠定界符和字段格式判断一帧是否完整、合法。
 
@@ -62,6 +64,10 @@ std::string make_gear_ratio_command(int ratio);              // $mphase:xx#
 std::string make_wheel_diameter_command(double diameter_mm); // $wdiameter:x#
 std::string make_deadzone_command(int deadzone);             // $deadzone:x#
 
+// 生成电池电压查询指令 "$read_vol#"（PDF §12）。
+// 驱动板应答形如 "$Battery:7.40V#"，由 parse_battery_voltage() 解析。
+std::string make_read_voltage_command();
+
 // ---------------- 帧解析（驱动板 → 上位机） ----------------
 
 // 把串口收到的字节流拼接起来，按 '$'...'#' 定界切出完整帧。
@@ -92,6 +98,10 @@ private:
 // 出现非整数字符等任何异常都返回 std::nullopt（视为校验失败）。
 std::optional<QuadCounts> parse_counts(const std::string &frame,
                                        const std::string &keyword);
+
+// 解析电池电压应答 "$Battery:7.40V#"，返回电压（单位 V）。
+// 缺帧尾、缺单位 V、数值非法、前缀不匹配均返回 std::nullopt。
+std::optional<double> parse_battery_voltage(const std::string &frame);
 
 } // namespace protocol
 } // namespace motor_driver
