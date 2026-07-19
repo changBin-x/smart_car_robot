@@ -34,7 +34,7 @@ SerialPort              ← termios 串口读写，带超时不阻塞（serial_p
 | 接口类型 | 数量 | 说明 |
 |---|---|---|
 | 命令接口 (command) | 4 | 每个轮关节 1 个 `velocity`（单位 rad/s） |
-| 状态接口 (state) | 8 | 每个轮关节各 1 个 `position`（rad）+ 1 个 `velocity`（rad/s） |
+| 状态接口 (state) | 9 | 每个轮关节各 1 个 `position`（rad）+ 1 个 `velocity`（rad/s）；另加传感器 `battery_state/voltage`（V） |
 
 关节名固定为：`front_left_wheel_joint`、`front_right_wheel_joint`、
 `rear_left_wheel_joint`、`rear_right_wheel_joint`。
@@ -56,6 +56,7 @@ SerialPort              ← termios 串口读写，带超时不阻塞（serial_p
 | read_timeout_ms | int | 15 | 单次 `read()` 串口等待上限，≤ 20 ms |
 | write_timeout_ms | int | 15 | 单次 `write()` 串口等待上限，≤ 20 ms |
 | max_read_misses | int | 20 | 连续无有效帧的容忍周期数，超过则报 `ERROR` |
+| battery_poll_period_ms | int | 1000 | 电池电压轮询周期（ms），对应 `$read_vol#` |
 | direction_m1..m4 | double | 1 | 每个电机方向系数，取 `1` 或 `-1` |
 
 > 编码器每转计数 `CPR = encoder_lines × gear_ratio × count_multiplier`。

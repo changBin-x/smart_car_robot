@@ -2,7 +2,7 @@
  * Author: ChangBin bin_chang@qq.com
  * Date: 2026-07-17
  * LastEditors: ChangBin bin_chang@qq.com
- * LastEditTime: 2026-07-17
+ * LastEditTime: 2026-07-19
  * Copyright (c) 2026 by ChangBin, All Rights Reserved.
  * Description: MecanumSystemHardware 实现，与 mecanum_system_hardware.hpp
  * 配对阅读
@@ -113,6 +113,9 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_init(
   if (!validate_joints(info)) {
     return hardware_interface::CallbackReturn::ERROR;
   }
+  if (!validate_sensors(info)) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
 
   counts_per_rev_ = static_cast<double>(encoder_lines_) *
                     static_cast<double>(gear_ratio_) *
@@ -161,6 +164,7 @@ bool MecanumSystemHardware::load_parameters(
       {"read_timeout_ms", &read_timeout_ms_},
       {"write_timeout_ms", &write_timeout_ms_},
       {"max_read_misses", &max_read_misses_},
+      {"battery_poll_period_ms", &battery_poll_period_ms_},
   };
   for (const auto &item : int_items) {
     const auto value = get_int_param(params, item.key, *item.target);
@@ -198,6 +202,13 @@ bool MecanumSystemHardware::load_parameters(
     RCLCPP_ERROR(logger(),
                  "read/write timeout must be in (0, 20] ms, got %d / %d",
                  read_timeout_ms_, write_timeout_ms_);
+    return false;
+  }
+  if (battery_poll_period_ms_ < 100) {
+    RCLCPP_ERROR(logger(),
+                 "battery_poll_period_ms must be >= 100 ms (got %d); "
+                 "higher rate would starve the motor control loop",
+                 battery_poll_period_ms_);
     return false;
   }
   return true;
@@ -253,10 +264,38 @@ bool MecanumSystemHardware::validate_joints(
   return true;
 }
 
+bool MecanumSystemHardware::validate_sensors(
+    const hardware_interface::HardwareInfo &info) const {
+  // battery_state_broadcaster 要求名为 battery_state 的 sensor，
+  // 且至少有一个 voltage 状态接口。
+  constexpr const char *kBatterySensorName = "battery_state";
+  constexpr const char *kVoltageInterface = "voltage";
+
+  for (const auto &sensor : info.sensors) {
+    if (sensor.name != kBatterySensorName) {
+      continue;
+    }
+    for (const auto &state_if : sensor.state_interfaces) {
+      if (state_if.name == kVoltageInterface) {
+        return true;
+      }
+    }
+    RCLCPP_ERROR(logger(),
+                 "sensor '%s' must declare a 'voltage' state interface",
+                 kBatterySensorName);
+    return false;
+  }
+  RCLCPP_ERROR(logger(),
+               "sensor '%s' with 'voltage' state interface is required "
+               "for battery_state_broadcaster",
+               kBatterySensorName);
+  return false;
+}
+
 std::vector<hardware_interface::StateInterface>
 MecanumSystemHardware::export_state_interfaces() {
   std::vector<hardware_interface::StateInterface> interfaces;
-  interfaces.reserve(protocol::kMotorCount * 2);
+  interfaces.reserve(protocol::kMotorCount * 2 + 1);
   for (int motor = 0; motor < protocol::kMotorCount; ++motor) {
     interfaces.emplace_back(kExpectedJointNames[motor],
                             hardware_interface::HW_IF_POSITION,
@@ -265,6 +304,8 @@ MecanumSystemHardware::export_state_interfaces() {
                             hardware_interface::HW_IF_VELOCITY,
                             &velocity_rad_s_[motor]);
   }
+  // 供 battery_state_broadcaster 认领的电池电压状态接口。
+  interfaces.emplace_back("battery_state", "voltage", &battery_voltage_);
   return interfaces;
 }
 
@@ -341,6 +382,9 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_activate(
   consecutive_read_misses_ = 0;
   velocity_rad_s_.fill(0.0);
   command_rad_s_.fill(0.0);
+  // 激活后立刻允许第一次电压轮询（epoch 保证 now - last > period）。
+  last_battery_poll_ = std::chrono::steady_clock::time_point{};
+  battery_voltage_ = std::numeric_limits<double>::quiet_NaN();
 
   // 打开累计计数 + 10ms 增量两路上报（协议总结 §3.3、确认结论 Q3/Q4）。
   const std::string upload_on =
@@ -402,9 +446,29 @@ void MecanumSystemHardware::send_stop_command() {
   }
 }
 
+void MecanumSystemHardware::maybe_poll_battery_voltage() {
+  const auto now = std::chrono::steady_clock::now();
+  const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+      now - last_battery_poll_);
+  if (elapsed.count() < battery_poll_period_ms_) {
+    return;
+  }
+  // 低频查询，不阻塞控制循环；应答在后续 read() 周期里由 FrameAssembler 解析。
+  if (!serial_.write_all(protocol::make_read_voltage_command(),
+                         std::chrono::milliseconds(write_timeout_ms_))) {
+    RCLCPP_WARN(logger(), "failed to poll battery voltage: %s",
+                serial_.last_error().c_str());
+    // 即使写失败也推进时间戳，避免每个周期重试打爆串口。
+  }
+  last_battery_poll_ = now;
+}
+
 hardware_interface::return_type
 MecanumSystemHardware::read(const rclcpp::Time & /*time*/,
                             const rclcpp::Duration & /*period*/) {
+  // 0) 低频触发电池电压查询（约 1 Hz），不参与通信丢失判定。
+  maybe_poll_battery_voltage();
+
   // 1) 收字节。超时内无数据返回空串，是正常情况。
   const std::string bytes =
       serial_.read_available(std::chrono::milliseconds(read_timeout_ms_));
@@ -428,9 +492,11 @@ MecanumSystemHardware::read(const rclcpp::Time & /*time*/,
     } else if (const auto delta = protocol::parse_counts(frame, "MTEP")) {
       latest_delta = *delta;
       got_delta = true;
+    } else if (const auto volts = protocol::parse_battery_voltage(frame)) {
+      // 电压读失败不打断电机控制；成功则覆盖上次有效值。
+      battery_voltage_ = *volts;
     } else {
-      // 既不是 MAll 也不是 MTEP：可能是坏帧，也可能是配置应答残留。
-      // 记 DEBUG 日志后忽略，不影响本周期其余帧。
+      // 既不是编码器也不是电池：可能是坏帧，也可能是配置应答残留。
       RCLCPP_DEBUG(logger(), "ignoring unparsable frame: '%s'", frame.c_str());
     }
   }
@@ -458,8 +524,9 @@ MecanumSystemHardware::read(const rclcpp::Time & /*time*/,
     }
   }
 
-  // 4) 超时判定：连续多个周期一帧都解析不出来才算通信故障。
+  // 4) 超时判定：连续多个周期一帧编码器都解析不出来才算通信故障。
   //    单个周期收不到帧是正常的（控制周期可能比上报周期短）。
+  //    仅收到电池帧不算编码器通信成功，也不单独触发 ERROR。
   if (got_total || got_delta) {
     consecutive_read_misses_ = 0;
   } else {

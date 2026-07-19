@@ -2,7 +2,7 @@
  * Author: ChangBin bin_chang@qq.com
  * Date: 2026-07-17
  * LastEditors: ChangBin bin_chang@qq.com
- * LastEditTime: 2026-07-17
+ * LastEditTime: 2026-07-19
  * Copyright (c) 2026 by ChangBin, All Rights Reserved.
  * Description: 硬件接口层（hardware interface layer）
  */
@@ -37,6 +37,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -105,12 +106,18 @@ private:
   // 校验 URDF 中的关节命名/接口配置是否与本驱动的约定一致。
   bool validate_joints(const hardware_interface::HardwareInfo &info) const;
 
+  // 校验 URDF 中电池传感器声明（sensor battery_state / voltage）。
+  bool validate_sensors(const hardware_interface::HardwareInfo &info) const;
+
   // 发送一条配置指令并等待 "OK" 应答（配置类指令有应答）。
   bool send_config_command(const std::string &command);
 
   // 向驱动板发零速指令（$spd:0,0,0,0#），停车用。
   // 失败只打日志不报错——停车是尽力而为的兜底动作。
   void send_stop_command();
+
+  // 到达轮询周期时向驱动板发送 "$read_vol#"；失败只打 WARN。
+  void maybe_poll_battery_voltage();
 
   rclcpp::Logger logger() const;
 
@@ -130,6 +137,8 @@ private:
   int read_timeout_ms_ = 15;  // 单次 read() 串口等待上限（≤20ms）
   int write_timeout_ms_ = 15; // 单次 write() 串口等待上限
   int max_read_misses_ = 20;  // 连续无有效帧的容忍周期数
+  // 电池电压轮询周期（ms）。控制循环约 20 ms，默认 1000 ms ≈ 1 Hz。
+  int battery_poll_period_ms_ = 1000;
   // 每轮方向系数（+1/-1），处理左右侧电机镜像安装。顺序 M1~M4。
   std::array<double, protocol::kMotorCount> direction_ = {1.0, 1.0, 1.0, 1.0};
 
@@ -143,6 +152,8 @@ private:
   std::array<double, protocol::kMotorCount> position_rad_ = {};
   std::array<double, protocol::kMotorCount> velocity_rad_s_ = {};
   std::array<double, protocol::kMotorCount> command_rad_s_ = {};
+  // 电池电压（V），供 battery_state_broadcaster 读取；无有效读数前为 quiet NaN。
+  double battery_voltage_ = std::numeric_limits<double>::quiet_NaN();
 
   // ---- read() 的运行时状态 ----
   // 最近一次收到的累计计数（算位置），及"是否已收到过第一帧"。
@@ -152,6 +163,8 @@ private:
   protocol::QuadCounts total_reference_ = {};
   // 连续未解析到有效帧的 read() 次数，超过 max_read_misses_ 报 ERROR。
   int consecutive_read_misses_ = 0;
+  // 上次成功发出 $read_vol# 的时刻（steady_clock）。
+  std::chrono::steady_clock::time_point last_battery_poll_{};
 };
 
 } // namespace motor_driver
