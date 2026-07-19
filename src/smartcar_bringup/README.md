@@ -69,7 +69,7 @@ ros2 launch smartcar_bringup smartcar.launch.py \
 | 参数 (Param) | 值 (Value) | 说明 (Description) |
 |---|---|---|
 | kinematics.wheels_radius | 0.03 | 轮半径，单位 m |
-| kinematics.sum_of_robot_center_projection_on_X_Y_axis | 0.20 | `lx + ly`（半轴距 + 半轮距） |
+| kinematics.sum_of_robot_center_projection_on_X_Y_axis | 0.206 | `lx + ly`（半轴距 0.110 + 半轮距 0.096） |
 | base_frame_id | `base_link` | 机体坐标系 |
 | odom_frame_id | `odom` | 里程计坐标系 |
 | enable_odom_tf | `true` | 发布 `odom → base_link` 的 TF |
