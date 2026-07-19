@@ -28,10 +28,10 @@ namespace motor_driver {
 namespace {
 
 // 本驱动约定的关节名 → 驱动板电机编号（协议总结 §2 的映射表）。
-// 数组下标即电机下标：0=M1 左前, 1=M2 左后, 2=M3 右前, 3=M4 右后。
+// 数组下标即电机下标：0=M1 右前, 1=M2 左前, 2=M3 右后, 3=M4 左后。
 constexpr std::array<const char *, protocol::kMotorCount> kExpectedJointNames =
-    {"front_left_wheel_joint", "rear_left_wheel_joint",
-     "front_right_wheel_joint", "rear_right_wheel_joint"};
+    {"front_right_wheel_joint", "front_left_wheel_joint",
+     "rear_right_wheel_joint", "rear_left_wheel_joint"};
 
 constexpr double kTwoPi = 2.0 * std::numbers::pi;
 

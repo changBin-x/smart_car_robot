@@ -137,8 +137,8 @@ private:
   double counts_per_rev_ = 260.0;
 
   // ---- 状态/命令存储（导出给 ros2_control 的内存） ----
-  // 数组下标固定按"驱动板电机编号"排序：0=M1 左前, 1=M2 左后,
-  // 2=M3 右前, 3=M4 右后。导出接口时按 kExpectedJointNames[下标] 绑定关节名，
+  // 数组下标固定按"驱动板电机编号"排序：0=M1 右前, 1=M2 左前,
+  // 2=M3 右后, 3=M4 左后。导出接口时按 kExpectedJointNames[下标] 绑定关节名，
   // 因此 URDF 里关节写成什么顺序都能对上，无需额外的索引映射表。
   std::array<double, protocol::kMotorCount> position_rad_ = {};
   std::array<double, protocol::kMotorCount> velocity_rad_s_ = {};

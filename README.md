@@ -1,12 +1,12 @@
 # smart_car_robot —— 四轮麦克纳姆轮全向移动小车
 
-基于 **ROS 2 Jazzy + ros2_control** 的四轮麦克纳姆轮全向移动平台。
+基于 **ROS 2 Jazzy + ros2_control** 的四轮麦克纳姆轮全向移动平台。项目远程仓库为：[smart_car_robot](https://github.com/changBin-x/smart_car_robot.git)
 上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与里程计，
 底层通过自研 `hardware_interface::SystemInterface` 插件（`motor_driver`）经 USB 串口
 驱动 4 路电机驱动板，闭环控制 4 个 MG310 霍尔编码器减速电机。
 
 - 开发/仿真环境：WSL2 + Ubuntu 24.04（mock 硬件，无串口）
-- 部署环境：树莓派 4B + Ubuntu 24.04 Server（实机串口 `/dev/ttyUSB0`，可配置），树莓派4B的默认IP是192.168.10.18，账户名是robot，wsl2可以免密登录进入树莓派4B的shell。项目代码在树莓派4B的
+- 部署环境：树莓派 4B + Ubuntu 24.04 Server（实机串口 `/dev/ttyUSB0`，可配置），树莓派4B的默认IP是192.168.10.18，账户名是robot，wsl2可以免密登录进入树莓派4B的shell，树莓派使用zsh终端，python路径在~/Documents/ros2_venv/bin/python3。项目代码在树莓派4B的~/projects/smart_car_robot目录下，树莓派4B只能从远程仓库拉取最新代码，不能推送代码。
 
 ## 1. 硬件清单
 
@@ -32,10 +32,10 @@
 
 | 板载丝印 | 车轮位置 | ROS 关节名 |
 |---|---|---|
-| M1 | 左前 | `front_left_wheel_joint` |
-| M2 | 左后 | `rear_left_wheel_joint` |
-| M3 | 右前 | `front_right_wheel_joint` |
-| M4 | 右后 | `rear_right_wheel_joint` |
+| M1 | 右前 | `front_right_wheel_joint` |
+| M2 | 左前 | `front_left_wheel_joint` |
+| M3 | 右后 | `rear_right_wheel_joint` |
+| M4 | 左后 | `rear_left_wheel_joint` |
 
 - 驱动板由电池供电，Type-C 仅作串口通信；树莓派独立供电。
 - 串口协议细节（指令表、单位换算公式）见 [docs/协议总结.md](docs/协议总结.md)。
