@@ -9,6 +9,7 @@
 |---|---|
 | `build.sh` | 一键编译整个工作空间，并开启 `compile_commands.json` 导出 |
 | `setup_clangd.sh` | 合并各包的编译数据库到仓库根，供 clangd 索引 |
+| `show_system_info.py` | 在 0.96寸 I2C OLED (SSD1306) 显示屏上实时显示系统 CPU、温度、内存和硬盘使用率 |
 
 ## build.sh
 
@@ -57,3 +58,29 @@ IntelliSense。VS Code 用户需：
 
 `.clangd` 已强制 C++20 并移除 GCC 专有参数，确保 clangd（clang 前端）能正确解析
 `<numbers>` 等 C++20 特性。
+
+## show_system_info.py
+
+在 0.96寸 I2C OLED (SSD1306) 显示屏上实时显示当前系统的 CPU 使用率、CPU 温度、内存使用率和硬盘使用率。
+
+### 依赖安装 (树莓派)
+
+```bash
+pip install psutil Pillow luma.oled
+# 或者使用 adafruit 驱动:
+# pip install psutil Pillow adafruit-circuitpython-ssd1306
+```
+
+### 运行方式
+
+```bash
+# 树莓派实机运行 (默认 I2C Bus=1, Address=0x3C)
+python3 scripts/show_system_info.py
+
+# 指定刷新间隔 (如 2 秒)
+python3 scripts/show_system_info.py --interval 2.0
+
+# 终端控制台调试模式 (用于无 OLED 屏幕测试)
+python3 scripts/show_system_info.py --console
+```
+
