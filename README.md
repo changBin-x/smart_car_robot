@@ -18,6 +18,7 @@
 | 车轮       | 麦克纳姆轮 Ø60 mm                                          | 4    | 左前/右前为镜像 A/B 轮 |
 | 电池       | 2S 锂电（7.4 V，5–12 V 均可）                              | 1    | 驱动板供电             |
 | 数据线     | USB A → Type-C                                             | 1    | 树莓派 ↔ 驱动板串口    |
+| IMU        | MPU6050（I2C，地址 0x68）                                  | 1    | 6 轴姿态传感器         |
 
 ### 接线说明
 
@@ -39,6 +40,7 @@
 
 - 驱动板由电池供电，Type-C 仅作串口通信；树莓派独立供电。
 - 串口协议细节（指令表、单位换算公式）见 [docs/协议总结.md](docs/协议总结.md)。
+- MPU6050 接线：VCC → 树莓派 3.3V，GND → GND，SDA → GPIO 2 (Pin 3)，SCL → GPIO 3 (Pin 5)，AD0 → GND（地址 0x68）。
 
 ## 2. 软件架构
 
@@ -101,6 +103,8 @@ smart_car_robot/                     # 仓库根 = colcon 工作空间根
 │   ├── 电机驱动板/
 │   └── 协议总结.md
 └── src/                             # ROS 包源码目录
+    ├── ros2_mpu6050/                #   MPU6050 IMU 驱动 (Git Submodule)
+    │   └── ...                      #     来自 https://github.com/kimsniper/ros2_mpu6050
     ├── motor_driver/                #   硬件接口插件包 (ament_cmake)
     │   ├── include/motor_driver/    #     SystemInterface 实现 + 协议/串口分层
     │   ├── src/

@@ -29,6 +29,14 @@ controller_manager / MecanumSystemHardware (motor_driver)
                                     │
                                     ▼
                               /battery_state
+
+MPU6050 (I2C-1, 0x68)
+        │
+        ▼
+   mpu6050_sensor
+        │  sensor_msgs/Imu
+        ▼
+   /imu/data_raw
 ```
 
 主要节点 / 组件：
@@ -41,6 +49,7 @@ controller_manager / MecanumSystemHardware (motor_driver)
 | `/joint_state_broadcaster` | 控制器 | 关节状态 → `/joint_states` |
 | `/mecanum_drive_controller` | 控制器 | 麦轮运动学 + 里程计 + TF |
 | `/battery_state_broadcaster` | 控制器 | 电压状态 → `/battery_state` |
+| `/mpu6050_sensor` | 节点 | MPU6050 IMU 驱动，发布 `/imu/data_raw` |
 | ros-mcp-server / teleop | 外部 | 向 `reference` 发速度指令 |
 
 控制循环默认 **50 Hz**（见 `controllers.yaml` 的 `update_rate`）。
@@ -61,6 +70,7 @@ controller_manager / MecanumSystemHardware (motor_driver)
 | `/tf_static` | `tf2_msgs/msg/TFMessage` | 发布 | 锁存 | `robot_state_publisher` | 静态坐标变换 |
 | `/robot_description` | `std_msgs/msg/String` | 发布 | 锁存 | `robot_state_publisher` | URDF 字符串 |
 | `/battery_state` | `sensor_msgs/msg/BatteryState` | 发布 | ~1 Hz | `battery_state_broadcaster` | 电池电压等（见 §3） |
+| `/imu/data_raw` | `sensor_msgs/msg/Imu` | 发布 | ~100 Hz | `mpu6050_sensor` | MPU6050 原始 IMU 数据（见 §8） |
 
 > 说明：`battery_state_broadcaster` 原生话题为 `/battery_state_broadcaster/battery_state`，
 > launch 中已 remap 为 `/battery_state`。
@@ -135,7 +145,49 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 
 ---
 
-## 5. 常用服务（运维）
+## 8. MPU6050 IMU 接口
+
+### 8.1 硬件连接
+
+| MPU6050 引脚 | 树莓派引脚 | 说明 |
+|---|---|---|
+| VCC | Pin 1 (3.3V) | 电源 |
+| GND | Pin 6 (GND) | 地 |
+| SDA | Pin 3 (GPIO 2) | I2C 数据线 |
+| SCL | Pin 5 (GPIO 3) | I2C 时钟线 |
+| AD0 | GND | 地址选择，接低电平 = 0x68 |
+
+### 8.2 ROS 侧
+
+- **话题：** `/imu/data_raw`
+- **类型：** `sensor_msgs/msg/Imu`
+- **频率：** ~100 Hz
+- **发布节点：** `mpu6050_sensor`（来自 `ros2_mpu6050` submodule）
+- **I2C 配置：** 设备 `/dev/i2c-1`，地址 `0x68`
+
+### 8.3 启动命令
+
+```bash
+# 默认启动（I2C-1, 地址 0x68）
+ros2 launch smartcar_bringup mpu6050.launch.py
+
+# 自定义 I2C 总线和地址
+ros2 launch smartcar_bringup mpu6050.launch.py i2c_device:=/dev/i2c-1 i2c_address:=0x68
+```
+
+### 8.4 验证
+
+```bash
+# 查看 IMU 数据
+ros2 topic echo /imu/data_raw
+
+# 查看话题频率
+ros2 topic hz /imu/data_raw
+```
+
+---
+
+## 9. 常用服务（运维）
 
 | 服务 (Service) | 类型 | 用途 |
 |---|---|---|
@@ -156,6 +208,7 @@ ros2 control list_hardware_interfaces
 
 - 工作空间内已包含 `battery_state_broadcaster` 源码包（便于无 root 权限的开发机编译）。
 - 树莓派若已安装 `ros-jazzy-battery-state-broadcaster`，可继续使用系统包；二者不要混用同名冲突版本。
+- `ros2_mpu6050` 以 Git Submodule 形式集成，需执行 `git submodule update --init --recursive` 初始化。
 
 ---
 
@@ -163,4 +216,5 @@ ros2 control list_hardware_interfaces
 
 | 日期 | 说明 |
 |---|---|
+| 2026-07-21 | 新增 MPU6050 IMU 接口说明（§8） |
 | 2026-07-19 | 初版：补充电池 `/battery_state`、方向标定结论与完整话题表 |
