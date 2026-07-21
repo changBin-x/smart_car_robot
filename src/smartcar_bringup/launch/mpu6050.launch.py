@@ -22,6 +22,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -43,6 +44,7 @@ def generate_launch_description():
     )
 
     # MPU6050 驱动节点
+    # 注意：YAML 会把 0x68 当成整数；必须强制为 string，与节点 declare 类型一致。
     mpu6050_node = Node(
         package="ros2_mpu6050",
         executable="ros2_mpu6050",
@@ -53,7 +55,9 @@ def generate_launch_description():
             mpu6050_params,
             {
                 "i2c_device": LaunchConfiguration("i2c_device"),
-                "i2c_address": LaunchConfiguration("i2c_address"),
+                "i2c_address": ParameterValue(
+                    LaunchConfiguration("i2c_address"), value_type=str
+                ),
             },
         ],
         remappings=[

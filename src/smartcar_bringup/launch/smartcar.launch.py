@@ -212,7 +212,8 @@ def generate_launch_description():
             mpu6050_params,
             {
                 "i2c_device": i2c_device,
-                "i2c_address": i2c_address,
+                # YAML 会把 0x68 解析为整数，必须强制 string
+                "i2c_address": ParameterValue(i2c_address, value_type=str),
             },
         ],
         remappings=[
