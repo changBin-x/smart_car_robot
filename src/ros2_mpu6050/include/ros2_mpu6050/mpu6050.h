@@ -34,9 +34,10 @@
 
 #include "ros2_mpu6050/mpu6050_hal.h"
 
-#include <string>
-#include <memory>
+#include <array>
 #include <cstdint>
+#include <memory>
+#include <string>
 
 class Mpu6050 {
 public:
