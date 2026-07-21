@@ -53,9 +53,16 @@ mecanum_drive_controller:
     # 状态关节名留空即与命令关节相同（本项目无级联控制器）。
 
     # ---- 里程计 / TF 帧 ----
-    base_frame_id: "base_link"
+    # base_frame_id 必须是 base_footprint（地面投影），而非 base_link（底盘中心）。
+    # 原因：控制器发布 odom → base_frame_id 的 TF（2D 平面，z=0）。
+    # 若设为 base_link，则 base_link 被锚定在 z=0，与 URDF 中
+    # base_footprint → base_link（z=0.1025）的静态 TF 冲突，导致
+    # 底盘 box 一半埋入地下。设为 base_footprint 后 TF 树为：
+    #   odom → base_footprint → base_link → wheels
+    # base_footprint 在 z=0（地面），base_link 在 z=0.1025（底盘中心高度）。
+    base_frame_id: "base_footprint"
     odom_frame_id: "odom"
-    enable_odom_tf: true          # 发布 odom → base_link 的 TF
+    enable_odom_tf: true          # 发布 odom → base_footprint 的 TF
 
     # ---- 麦轮运动学几何 ----
     kinematics:

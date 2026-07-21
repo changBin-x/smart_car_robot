@@ -14,7 +14,7 @@
   `motor_driver` 串口插件。
 - **几何参数化**：轮半径、前后轮距、左右轮距均为 xacro 参数，实车测量后集中修改。
 - **全向运动学 + 里程计**：`mecanum_drive_controller` 解算 4 轮速度并发布
-  `/odom` 与 `odom → base_link` 的 TF。
+  `/odom` 与 `odom → base_footprint` 的 TF。
 
 ## 目录结构
 
@@ -70,9 +70,9 @@ ros2 launch smartcar_bringup smartcar.launch.py \
 |---|---|---|
 | kinematics.wheels_radius | 0.03 | 轮半径，单位 m |
 | kinematics.sum_of_robot_center_projection_on_X_Y_axis | 0.206 | `lx + ly`（半轴距 0.110 + 半轮距 0.096） |
-| base_frame_id | `base_link` | 机体坐标系 |
+| base_frame_id | `base_footprint` | 机体地面投影坐标系（z=0） |
 | odom_frame_id | `odom` | 里程计坐标系 |
-| enable_odom_tf | `true` | 发布 `odom → base_link` 的 TF |
+| enable_odom_tf | `true` | 发布 `odom → base_footprint` 的 TF |
 
 > 更新频率在 WSL2（`/mnt/d` 挂载）下设为 50 Hz 以缓解实时循环超限；
 > 部署到树莓派原生文件系统可提升到 100 Hz。
