@@ -7,7 +7,8 @@
        wheel_radius   轮半径 [m]
        wheelbase      前后轮轴距（前轴到后轴）[m]
        track_width    左右轮距（左轮到右轮）[m]
-     轮子相对 base_link 的位置 = (±wheelbase/2, ±track_width/2)。
+     轮子相对 base_link 的位置 = (±wheelbase/2, ±track_width/2, -base_height/2)，
+     Z 偏移使轮子位于底盘底面而非几何中心。
 
      注意：轴距/轮距须与实车测量一致（底盘 220×192×145 mm，麦轮厚 30 mm），
      见 docs/协议总结.md §7 Q7。它们同时决定：
@@ -74,8 +75,10 @@
   <joint name="base_footprint_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
-    <!-- 底盘中心离地 = 轮半径 + 少量底盘厚度余量 -->
-    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+    <!-- 底盘几何中心离地高度 = 轮半径 + 底盘高度/2。
+         这样底盘底面恰好位于轮子中心高度（z=wheel_radius），
+         轮子从底盘底面伸出接触地面，而不会埋在地下或浮在半空。 -->
+    <origin xyz="0 0 ${base_height/2 + wheel_radius}" rpy="0 0 0"/>
   </joint>
 
   <!-- ================= 轮子宏 ================= -->
@@ -111,7 +114,10 @@
     <joint name="${prefix}_wheel_joint" type="continuous">
       <parent link="base_link"/>
       <child link="${prefix}_wheel_link"/>
-      <origin xyz="${x_sign*wheelbase/2.0} ${y_sign*track_width/2.0} 0"
+      <!-- 轮关节 Z = -base_height/2，使轮子中心位于底盘底面（base_link
+           原点是底盘几何中心，向下偏移半个底盘高度即到底面）。
+           配合 base_footprint_joint 的 Z 偏移，轮子底部恰好着地。 -->
+      <origin xyz="${x_sign*wheelbase/2.0} ${y_sign*track_width/2.0} ${-base_height/2}"
               rpy="0 0 0"/>
       <axis xyz="0 1 0"/>
     </joint>
