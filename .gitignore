@@ -13,3 +13,5 @@
 
 # 项目内部文件（任务清单、私有规范），不随仓库分发
 /temp.md
+.superpowers/
+docs/superpowers

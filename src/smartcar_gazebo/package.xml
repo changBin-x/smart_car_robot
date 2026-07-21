@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>smartcar_gazebo</name>
+  <version>0.1.0</version>
+  <description>
+    Gazebo Harmonic 空世界与仿真 launch。
+    启动 gz sim、robot_state_publisher、模型生成与 /clock 桥接。
+  </description>
+  <maintainer email="user@todo.todo">smart_car_robot</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- 运行期：描述包、仿真、桥接、模型发布、xacro、RViz、launch -->
+  <exec_depend>smartcar_description</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
