@@ -26,6 +26,8 @@
   <exec_depend>ros2controlcli</exec_depend>
   <!-- 实机硬件插件；mock 模式下不加载但仍声明依赖关系 -->
   <exec_depend>motor_driver</exec_depend>
+  <!-- 实机 IMU；mock 模式下 launch 条件跳过，仍声明依赖便于解析 -->
+  <exec_depend>ros2_mpu6050</exec_depend>
   <!-- 启动与遥控辅助 -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

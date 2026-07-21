@@ -6,7 +6,7 @@ LastEditTime: 2026-07-21
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
 Description: 启动 MPU6050 IMU 传感器驱动节点
 -----------------------------------------------------------
-通过 ros2_mpu6050 submodule 发布 IMU 数据。
+通过工作空间内的 ros2_mpu6050 包发布 IMU 数据（非 submodule）。
 配置 I2C 地址 0x68，发布话题 /imu/data_raw。
 
 launch 参数：
@@ -20,8 +20,9 @@ launch 参数：
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -37,6 +38,10 @@ def generate_launch_description():
         description="MPU6050 I2C 设备地址（AD0 接低电平=0x68，接高电平=0x69）",
     )
 
+    mpu6050_params = PathJoinSubstitution(
+        [FindPackageShare("ros2_mpu6050"), "config", "params.yaml"]
+    )
+
     # MPU6050 驱动节点
     mpu6050_node = Node(
         package="ros2_mpu6050",
@@ -45,10 +50,11 @@ def generate_launch_description():
         output="screen",
         emulate_tty=True,
         parameters=[
+            mpu6050_params,
             {
                 "i2c_device": LaunchConfiguration("i2c_device"),
                 "i2c_address": LaunchConfiguration("i2c_address"),
-            }
+            },
         ],
         remappings=[
             ("imu/mpu6050", "/imu/data_raw"),

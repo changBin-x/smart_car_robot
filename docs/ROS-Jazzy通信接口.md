@@ -162,17 +162,21 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - **话题：** `/imu/data_raw`
 - **类型：** `sensor_msgs/msg/Imu`
 - **频率：** ~100 Hz
-- **发布节点：** `mpu6050_sensor`（来自 `ros2_mpu6050` submodule）
-- **I2C 配置：** 设备 `/dev/i2c-1`，地址 `0x68`
+- **发布节点：** `mpu6050_sensor`（包 `ros2_mpu6050`，源码位于 `src/ros2_mpu6050`，非 submodule）
+- **I2C 配置：** 设备 `/dev/i2c-1`，地址 `0x68`（参数 `i2c_device` / `i2c_address`）
 
 ### 8.3 启动命令
 
 ```bash
-# 默认启动（I2C-1, 地址 0x68）
+# 仅 IMU（I2C-1, 地址 0x68）
 ros2 launch smartcar_bringup mpu6050.launch.py
 
 # 自定义 I2C 总线和地址
 ros2 launch smartcar_bringup mpu6050.launch.py i2c_device:=/dev/i2c-1 i2c_address:=0x68
+
+# 实机一键 bringup（含电机栈 + MPU6050）
+ros2 launch smartcar_bringup smartcar.launch.py \
+  use_mock_hardware:=false serial_port:=/dev/ttyUSB0
 ```
 
 ### 8.4 验证
@@ -208,7 +212,8 @@ ros2 control list_hardware_interfaces
 
 - 工作空间内已包含 `battery_state_broadcaster` 源码包（便于无 root 权限的开发机编译）。
 - 树莓派若已安装 `ros-jazzy-battery-state-broadcaster`，可继续使用系统包；二者不要混用同名冲突版本。
-- `ros2_mpu6050` 以 Git Submodule 形式集成，需执行 `git submodule update --init --recursive` 初始化。
+- `ros2_mpu6050` 以普通源码包形式纳入 `src/`（非 Git Submodule），克隆仓库后直接 `colcon build` 即可；树莓派需安装 `libi2c-dev`。
+- `smartcar.launch.py` 在 `use_mock_hardware:=false` 时自动启动 `mpu6050_sensor`；WSL2 mock 模式跳过 IMU。
 
 ---
 
@@ -216,5 +221,6 @@ ros2 control list_hardware_interfaces
 
 | 日期 | 说明 |
 |---|---|
+| 2026-07-21 | MPU6050 改为源码纳入；节点读取 `i2c_*` 参数；`smartcar.launch.py` 实机启 IMU |
 | 2026-07-21 | 新增 MPU6050 IMU 接口说明（§8） |
 | 2026-07-19 | 初版：补充电池 `/battery_state`、方向标定结论与完整话题表 |

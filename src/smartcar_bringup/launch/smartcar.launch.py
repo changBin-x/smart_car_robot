@@ -2,7 +2,7 @@
 Author: ChangBin bin_chang@qq.com
 Date: 2026-07-17
 LastEditors: ChangBin bin_chang@qq.com
-LastEditTime: 2026-07-19
+LastEditTime: 2026-07-21
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
 Description: 一键启动四轮麦克纳姆小车控制栈
 -----------------------------------------------------------
@@ -12,21 +12,26 @@ Description: 一键启动四轮麦克纳姆小车控制栈
   3) joint_state_broadcaster（spawner）
   4) mecanum_drive_controller（spawner，等 broadcaster 起来后再加载）
   5) battery_state_broadcaster（spawner，发布 /battery_state）
+  6) mpu6050_sensor        —— MPU6050 IMU 驱动（I2C 地址 0x68）
 
 launch 参数：
   use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
   serial_port       (默认 /dev/ttyUSB0)：实机串口设备名
   baud_rate         (默认 115200)
+  i2c_device        (默认 /dev/i2c-1)：MPU6050 I2C 总线
+  i2c_address       (默认 0x68)：MPU6050 I2C 地址
 
 用法：
   WSL2 仿真：ros2 launch smartcar_bringup smartcar.launch.py
   实机：     ros2 launch smartcar_bringup smartcar.launch.py \
                 use_mock_hardware:=false serial_port:=/dev/ttyUSB0
+  说明：实机（use_mock_hardware:=false）时一并启动 MPU6050；
+        WSL2 mock 模式不启 IMU（无 I2C 硬件）。
 """
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import (
     Command,
@@ -62,14 +67,29 @@ def generate_launch_description():
             default_value="false",
             description="是否同时打开 RViz2 可视化",
         ),
+        DeclareLaunchArgument(
+            "i2c_device",
+            default_value="/dev/i2c-1",
+            description="MPU6050 I2C 总线设备路径（实机生效）",
+        ),
+        DeclareLaunchArgument(
+            "i2c_address",
+            default_value="0x68",
+            description="MPU6050 I2C 地址（AD0 接 GND=0x68）",
+        ),
     ]
 
     use_mock_hardware = LaunchConfiguration("use_mock_hardware")
     serial_port = LaunchConfiguration("serial_port")
     baud_rate = LaunchConfiguration("baud_rate")
     use_rviz = LaunchConfiguration("use_rviz")
+    i2c_device = LaunchConfiguration("i2c_device")
+    i2c_address = LaunchConfiguration("i2c_address")
 
     pkg_share = FindPackageShare("smartcar_bringup")
+    mpu6050_params = PathJoinSubstitution(
+        [FindPackageShare("ros2_mpu6050"), "config", "params.yaml"]
+    )
 
     # ---------------- 用 xacro 展开 URDF ----------------
     # robot_description 是一个"运行时字符串"，由 xacro 命令即时生成，
@@ -180,6 +200,26 @@ def generate_launch_description():
         condition=IfCondition(use_rviz),
     )
 
+    # 实机才启 MPU6050（WSL2 mock 无 I2C）；话题 remap 到 /imu/data_raw
+    mpu6050_node = Node(
+        package="ros2_mpu6050",
+        executable="ros2_mpu6050",
+        name="mpu6050_sensor",
+        output="screen",
+        emulate_tty=True,
+        condition=UnlessCondition(use_mock_hardware),
+        parameters=[
+            mpu6050_params,
+            {
+                "i2c_device": i2c_device,
+                "i2c_address": i2c_address,
+            },
+        ],
+        remappings=[
+            ("imu/mpu6050", "/imu/data_raw"),
+        ],
+    )
+
     return LaunchDescription(
         declared_arguments
         + [
@@ -188,6 +228,7 @@ def generate_launch_description():
             joint_state_broadcaster_spawner,
             delay_mecanum_after_jsb,
             delay_battery_after_jsb,
+            mpu6050_node,
             rviz_node,
         ]
     )

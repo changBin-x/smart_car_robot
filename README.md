@@ -103,8 +103,8 @@ smart_car_robot/                     # 仓库根 = colcon 工作空间根
 │   ├── 电机驱动板/
 │   └── 协议总结.md
 └── src/                             # ROS 包源码目录
-    ├── ros2_mpu6050/                #   MPU6050 IMU 驱动 (Git Submodule)
-    │   └── ...                      #     来自 https://github.com/kimsniper/ros2_mpu6050
+    ├── ros2_mpu6050/                #   MPU6050 IMU 驱动（源码纳入本仓库，非 submodule）
+    │   └── ...                      #     基于 https://github.com/kimsniper/ros2_mpu6050，默认地址 0x68
     ├── motor_driver/                #   硬件接口插件包 (ament_cmake)
     │   ├── include/motor_driver/    #     SystemInterface 实现 + 协议/串口分层
     │   ├── src/
@@ -182,7 +182,12 @@ sudo apt install -y ros-jazzy-ros-base ros-dev-tools
 # 3. 串口权限：把当前用户加入 dialout 组（重新登录生效）
 sudo usermod -aG dialout $USER
 
-# 4. 确认驱动板设备名（插上 Type-C 后）
+# 4. I2C（MPU6050）：启用总线并安装开发库
+sudo apt install -y libi2c-dev i2c-tools
+# raspi-config / 设备树确认 I2C 已启用后：
+i2cdetect -y 1   # 应在 68 处看到 MPU6050
+
+# 5. 确认驱动板设备名（插上 Type-C 后）
 ls /dev/ttyUSB* /dev/ttyACM*
 # 如果不是 /dev/ttyUSB0，启动时用 serial_port launch 参数覆盖
 ```
@@ -215,9 +220,12 @@ source install/setup.bash
 # WSL2：mock 硬件启动（默认 use_mock_hardware:=true）
 ros2 launch smartcar_bringup smartcar.launch.py
 
-# 树莓派：实机启动
+# 树莓派：实机启动（含电机栈 + MPU6050 → /imu/data_raw）
 ros2 launch smartcar_bringup smartcar.launch.py \
   use_mock_hardware:=false serial_port:=/dev/ttyUSB0
+
+# 仅启动 IMU（可选）
+ros2 launch smartcar_bringup mpu6050.launch.py
 
 # 键盘遥控（Jazzy 的 mecanum_drive_controller 订阅 TwistStamped，
 # teleop 需加 stamped:=true 并 remap 到控制器 reference 话题）
@@ -225,6 +233,8 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
   --ros-args -p stamped:=true \
   -r /cmd_vel:=/mecanum_drive_controller/reference
 ```
+
+树莓派额外依赖：`sudo apt install -y libi2c-dev i2c-tools`（编译链接 `libi2c`，并用 `i2cdetect -y 1` 确认地址 `0x68`）。
 
 完整验证命令（控制器状态、硬件接口、里程计方向）见
 [smartcar_bringup/doc/验证手册.md](smartcar_bringup/doc/验证手册.md)。

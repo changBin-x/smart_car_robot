@@ -1,3 +1,0 @@
-[submodule "src/ros2_mpu6050"]
-	path = src/ros2_mpu6050
-	url = https://github.com/kimsniper/ros2_mpu6050.git
