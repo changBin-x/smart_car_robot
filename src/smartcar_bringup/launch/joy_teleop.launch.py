@@ -57,7 +57,7 @@ def generate_launch_description():
     # 手柄按键到速度指令转换节点
     teleop_twist_joy_node = Node(
         package="teleop_twist_joy",
-        executable="teleop_twist_joy_node",
+        executable="teleop_node",
         name="teleop_twist_joy_node",
         output="screen",
         parameters=[joy_config],
