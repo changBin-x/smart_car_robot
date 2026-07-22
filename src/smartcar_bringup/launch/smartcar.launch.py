@@ -14,18 +14,21 @@ Description: 一键启动四轮麦克纳姆小车控制栈
   5) battery_state_broadcaster（spawner，发布 /battery_state）
   6) mpu6050_sensor        —— MPU6050 IMU 驱动（I2C 地址 0x68）
   7) rosbridge_websocket   —— rosbridge_server 的 WebSocket 桥接（端口 9090）
+  8) joy_teleop            —— Xbox 手柄遥控栈（可选参数 use_joy:=true 启动）
 
 launch 参数：
   use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
-  serial_port       (默认 /dev/ttyUSB0)：实机串口设备名
+  serial_port       (默认 /dev/ttyUSB0)：实机驱动板串口设备名
   baud_rate         (默认 115200)
   i2c_device        (默认 /dev/i2c-1)：MPU6050 I2C 总线
   i2c_address       (默认 0x68)：MPU6050 I2C 地址
+  use_joy           (默认 false)：是否同时启动 Xbox 手柄遥控栈
+  joy_dev           (默认 /dev/input/js0)：手柄设备节点路径
 
 用法：
   WSL2 仿真：ros2 launch smartcar_bringup smartcar.launch.py
   实机：     ros2 launch smartcar_bringup smartcar.launch.py \
-                use_mock_hardware:=false serial_port:=/dev/ttyUSB0
+                use_mock_hardware:=false serial_port:=/dev/ttyUSB0 use_joy:=true
   说明：实机（use_mock_hardware:=false）时一并启动 MPU6050；
         WSL2 mock 模式不启 IMU（无 I2C 硬件）。
 """
@@ -38,6 +41,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch.substitutions import (
     Command,
@@ -83,6 +87,16 @@ def generate_launch_description():
             default_value="0x68",
             description="MPU6050 I2C 地址（AD0 接 GND=0x68）",
         ),
+        DeclareLaunchArgument(
+            "use_joy",
+            default_value="false",
+            description="是否启动 Xbox 手柄遥控控制栈 (joy_node + teleop_twist_joy_node)",
+        ),
+        DeclareLaunchArgument(
+            "joy_dev",
+            default_value="/dev/input/js0",
+            description="手柄 Linux 设备节点路径 (use_joy:=true 时生效)",
+        ),
     ]
 
     use_mock_hardware = LaunchConfiguration("use_mock_hardware")
@@ -91,6 +105,8 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration("use_rviz")
     i2c_device = LaunchConfiguration("i2c_device")
     i2c_address = LaunchConfiguration("i2c_address")
+    use_joy = LaunchConfiguration("use_joy")
+    joy_dev = LaunchConfiguration("joy_dev")
 
     pkg_share = FindPackageShare("smartcar_bringup")
     mpu6050_params = PathJoinSubstitution(
@@ -241,6 +257,16 @@ def generate_launch_description():
         )
     )
 
+    # ---------------- Xbox 手柄遥控 (可选启动) ----------------
+    # 参数 use_joy:=true 时一并拉起手柄驱动与 Twist 转换节点
+    joy_teleop_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([pkg_share, "launch", "joy_teleop.launch.py"])
+        ),
+        condition=IfCondition(use_joy),
+        launch_arguments={"joy_dev": joy_dev}.items(),
+    )
+
     return LaunchDescription(
         declared_arguments
         + [
@@ -252,5 +278,6 @@ def generate_launch_description():
             mpu6050_node,
             rviz_node,
             rosbridge_launch,
+            joy_teleop_launch,
         ]
     )

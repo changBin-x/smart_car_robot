@@ -1,0 +1,31 @@
+# Xbox 手柄与 teleop_twist_joy 参数配置文件
+joy_node:
+  ros__parameters:
+    device_id: 0
+    device_name: ""
+    deadzone: 0.05
+    autorepeat_rate: 20.0
+
+teleop_twist_joy_node:
+  ros__parameters:
+    # 左右摇杆与按键映射
+    axis_linear:
+      x: 1                    # 左摇杆上下控制前后移动 (Axis 1)
+    scale_linear:
+      x: 0.5                  # 普通模式最大线速度 (m/s)
+    scale_linear_turbo:
+      x: 1.0                  # 加速模式最大线速度 (m/s)
+
+    axis_angular:
+      yaw: 3                  # 右摇杆左右控制旋转 (Axis 3)
+    scale_angular:
+      yaw: 1.5                # 普通模式最大角速度 (rad/s)
+    scale_angular_turbo:
+      yaw: 3.0                # 加速模式最大角速度 (rad/s)
+
+    enable_button: 4          # LB 按键使能 (Button 4)
+    require_enable_button: true
+    enable_turbo_button: 5    # RB 按键加速 (Button 5)
+
+    publish_stamped_twist: true  # Jazzy mecanum_drive_controller 需要 TwistStamped
+    frame_id: "base_footprint"
