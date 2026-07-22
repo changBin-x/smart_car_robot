@@ -31,6 +31,7 @@
   <!-- 启动与遥控辅助 -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>teleop_twist_keyboard</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
 

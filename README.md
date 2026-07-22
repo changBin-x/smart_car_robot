@@ -1,12 +1,12 @@
 # smart_car_robot —— 四轮麦克纳姆轮全向移动小车
 
-基于 **ROS 2 Jazzy + ros2_control** 的四轮麦克纳姆轮全向移动平台。项目远程仓库为：[smart_car_robot](https://github.com/changBin-x/smart_car_robot.git)
-上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与里程计，
+基于 **ROS 2 Jazzy + ros2_control** 的四轮麦克纳姆轮全向移动平台。项目远程仓库为： [smart_car_robot](https://github.com/changBin-x/smart_car_robot.git)
+上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与里程计，集成 `rosbridge_server` 提供 WebSocket 通信服务，
 底层通过自研 `hardware_interface::SystemInterface` 插件（`motor_driver`）经 USB 串口
 驱动 4 路电机驱动板，闭环控制 4 个 MG310 霍尔编码器减速电机。
 
 - 开发/仿真环境：WSL2 + Ubuntu 24.04（mock 硬件，无串口）
-- 部署环境：树莓派 4B + Ubuntu 24.04 Server（实机串口 `/dev/ttyUSB0`，可配置），树莓派4B的默认IP是192.168.10.18，账户名是robot，wsl2可以免密登录进入树莓派4B的shell，树莓派使用zsh终端，python路径在~/Documents/ros2_venv/bin/python3。项目代码在树莓派4B的~/projects/smart_car_robot目录下，树莓派4B只能从远程仓库拉取最新代码，禁止在树莓派上修改和推送代码。
+- 部署环境：树莓派 4B + Ubuntu 24.04 Server（实机串口 `/dev/ttyUSB0`，可配置）。树莓派 4B 的默认 IP 是 `192.168.10.18`，账户名是 `robot`，WSL2 可以免密登录进入树莓派 4B 的 shell，树莓派使用 zsh 终端，Python 路径在 `~/Documents/ros2_venv/bin/python3`。项目代码在树莓派 4B 的 `~/projects/smart_car_robot` 目录下，树莓派 4B 只能从远程仓库拉取最新代码，禁止在树莓派上修改和推送代码。
 
 ## 1. 硬件清单
 
@@ -23,7 +23,7 @@
 ### 接线说明
 
 ```
-树莓派 4B  ──USB A→Type-C──  4路电机驱动板  ──XH2.54-2PIN×4──  电机电源线
+树莓派 4B  ──USB A→Type-C──  4 路电机驱动板  ──XH2.54-2PIN×4──  电机电源线
                               │            ──PH2.0-6PIN×4───  编码器线
                               └─5V-12V 电源端子 ── 2S 锂电池
 ```
@@ -39,7 +39,7 @@
 | M4       | 左后     | `rear_left_wheel_joint`   |
 
 - 驱动板由电池供电，Type-C 仅作串口通信；树莓派独立供电。
-- 串口协议细节（指令表、单位换算公式）见 [docs/协议总结.md](docs/协议总结.md)。
+- 串口协议细节（指令表、单位换算公式）请参考 [协议总结](docs/协议总结.md) 。
 - MPU6050 接线：VCC → 树莓派 3.3V，GND → GND，SDA → GPIO 2 (Pin 3)，SCL → GPIO 3 (Pin 5)，AD0 → GND（地址 0x68）。
 
 ## 2. 软件架构
@@ -47,7 +47,8 @@
 ```mermaid
 graph TD
     subgraph 用户层
-        TELEOP["teleop_twist_keyboard / Nav2<br/>(TwistStamped)"]
+        TELEOP["teleop_twist_keyboard / Nav2 / Web UI<br/>(TwistStamped / WebSocket)"]
+        ROSBRIDGE["rosbridge_server<br/>(rosbridge_websocket 端口 9090)"]
     end
     subgraph "ros2_control 框架"
         CM[controller_manager]
@@ -65,6 +66,8 @@ graph TD
         MOTOR["MG310 电机 ×4<br/>(AB 相霍尔编码器)"]
     end
 
+    ROSBRIDGE -->|"/mecanum_drive_controller/reference"| MDC
+    TELEOP -->|"WebSocket / Topic"| ROSBRIDGE
     TELEOP -->|"/mecanum_drive_controller/reference"| MDC
     CM --> MDC
     CM --> JSB
@@ -80,8 +83,9 @@ graph TD
 - **mecanum_drive_controller**：订阅 `TwistStamped` 期望速度，按麦轮逆运动学拆成 4 个轮子的
   `velocity` 命令；同时用轮速正运动学积分出 `/odom` 并发布 `odom → base_link` TF。
 - **joint_state_broadcaster**：把 8 个状态接口转发为 `/joint_states`。
+- **rosbridge_server**：启动 WebSocket 服务（包含 `rosbridge_websocket_launch.xml`），默认监听端口 `9090`，方便网页及上层 UI 远程调用 ROS 2 话题与服务。
 - **motor_driver**：读——解析驱动板周期上报的编码器计数，换算 rad / rad/s；
-  写——把 rad/s 命令换算为 mm/s 下发 `$spd` 指令。详见 [motor_driver/README.md](motor_driver/README.md)。
+  写——把 rad/s 命令换算为 mm/s 下发 `$spd` 指令。详见 [motor_driver/README.md](src/motor_driver/README.md)。
 - **mock 模式**（WSL2）：`<ros2_control>` 内换用 `mock_components/GenericSystem`，
   命令值直接回环到状态值，无需串口即可全链路调试控制器与 TF。
 
@@ -116,7 +120,7 @@ smart_car_robot/                     # 仓库根 = colcon 工作空间根
     └── smartcar_bringup/            #   模型 + 控制器配置 + 启动包
         ├── urdf/                    #     xacro（底盘 + 4 轮 + ros2_control 标签）
         ├── config/                  #     controllers.yaml
-        ├── launch/                  #     bringup launch
+        ├── launch/                  #     bringup launch（包含 rosbridge_server）
         ├── doc/                     #     验证手册
         ├── README.md
         ├── CMakeLists.txt
@@ -144,6 +148,7 @@ sudo apt install -y \
   ros-jazzy-ros2-controllers \
   ros-jazzy-xacro \
   ros-jazzy-robot-state-publisher \
+  ros-jazzy-rosbridge-server \
   ros-jazzy-teleop-twist-keyboard
 
 # 3. 环境变量（写入 ~/.bashrc）
@@ -217,10 +222,10 @@ source install/setup.bash
 启动命令：
 
 ```bash
-# WSL2：mock 硬件启动（默认 use_mock_hardware:=true）
+# WSL2：mock 硬件启动（默认 use_mock_hardware:=true，含 WebSocket 端口 9090）
 ros2 launch smartcar_bringup smartcar.launch.py
 
-# 树莓派：实机启动（含电机栈 + MPU6050 → /imu/data_raw）
+# 树莓派：实机启动（含电机栈 + MPU6050 → /imu/data_raw + WebSocket 端口 9090）
 ros2 launch smartcar_bringup smartcar.launch.py \
   use_mock_hardware:=false serial_port:=/dev/ttyUSB0
 
@@ -234,10 +239,9 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
   -r /cmd_vel:=/mecanum_drive_controller/reference
 ```
 
-树莓派额外依赖：`sudo apt install -y libi2c-dev i2c-tools`（编译链接 `libi2c`，并用 `i2cdetect -y 1` 确认地址 `0x68`）。
+树莓派额外依赖： `sudo apt install -y libi2c-dev i2c-tools`（编译链接 `libi2c`，并用 `i2cdetect -y 1` 确认地址 `0x68`）。
 
-完整验证命令（控制器状态、硬件接口、里程计方向）见
-[smartcar_bringup/doc/验证手册.md](smartcar_bringup/doc/验证手册.md)。
+完整验证命令（控制器状态、硬件接口、里程计方向）请参考 [验证手册](src/smartcar_bringup/doc/验证手册.md) 。
 
 ## 6. 后续路线图
 
@@ -247,6 +251,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - [ ] 树莓派实机联调：编码器倍频 K 标定、轮距实测回填
 - [x] 电机方向系数校准（2026-07-19：`direction_m2/m3=-1`）
 - [x] 电池电量：`$read_vol#` → `/battery_state`（`sensor_msgs/BatteryState`）
+- [x] 接入 WebSocket 桥接（`rosbridge_server` 端口 9090）
 - [ ] udev 规则固定串口别名（`/dev/smartcar_driver`）
 - [ ] 加入 IMU + `ekf`（robot_localization）融合里程计
 - [ ] 接入 Nav2 导航栈与 SLAM（slam_toolbox）

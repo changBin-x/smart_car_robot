@@ -2,7 +2,7 @@
 Author: ChangBin bin_chang@qq.com
 Date: 2026-07-17
 LastEditors: ChangBin bin_chang@qq.com
-LastEditTime: 2026-07-21
+LastEditTime: 2026-07-23
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
 Description: 一键启动四轮麦克纳姆小车控制栈
 -----------------------------------------------------------
@@ -13,6 +13,7 @@ Description: 一键启动四轮麦克纳姆小车控制栈
   4) mecanum_drive_controller（spawner，等 broadcaster 起来后再加载）
   5) battery_state_broadcaster（spawner，发布 /battery_state）
   6) mpu6050_sensor        —— MPU6050 IMU 驱动（I2C 地址 0x68）
+  7) rosbridge_websocket   —— rosbridge_server 的 WebSocket 桥接（端口 9090）
 
 launch 参数：
   use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
@@ -30,9 +31,14 @@ launch 参数：
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, RegisterEventHandler
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    RegisterEventHandler,
+)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
+from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -221,6 +227,20 @@ def generate_launch_description():
         ],
     )
 
+    # ---------------- rosbridge_server WebSocket 桥接 ----------------
+    # 启动 WebSocket 桥接服务，暴露 9090 端口供 Web 上层与 ROS 2 通信
+    rosbridge_launch = IncludeLaunchDescription(
+        XMLLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("rosbridge_server"),
+                    "launch",
+                    "rosbridge_websocket_launch.xml",
+                ]
+            )
+        )
+    )
+
     return LaunchDescription(
         declared_arguments
         + [
@@ -231,5 +251,6 @@ def generate_launch_description():
             delay_battery_after_jsb,
             mpu6050_node,
             rviz_node,
+            rosbridge_launch,
         ]
     )
