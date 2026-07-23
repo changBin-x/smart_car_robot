@@ -25,19 +25,17 @@
   <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
   <xacro:arg name="baud_rate" default="115200"/>
 
-  <!-- ===== 几何常量（单位 m，2026-07-20 实车测量回填）===== -->
-  <!-- 底盘外形：长 220 mm × 宽 192 mm × 高 145 mm；麦轮 Ø60 mm、厚 30 mm。
-       轴距/轮距暂按底盘长宽近似（轮心距未单独卷尺时）；改此处时必须同步
-       controllers.yaml 的 sum_of_robot_center_projection_on_X_Y_axis。 -->
+  <!-- ===== 几何常量（单位 m，2026-07-22 从 smartcar_description 同步）===== -->
   <xacro:property name="wheel_radius" value="0.03"/>   <!-- 麦轮 Ø60mm → r=0.03 -->
-  <xacro:property name="wheel_width" value="0.03"/>    <!-- 轮厚 30 mm，仅可视化 -->
-  <xacro:property name="wheelbase" value="0.220"/>     <!-- 前后轴距 ≈ 底盘长 -->
-  <xacro:property name="track_width" value="0.192"/>   <!-- 左右轮距 ≈ 底盘宽 -->
+  <xacro:property name="wheel_width" value="0.03062"/> <!-- 轮厚 30.62 mm -->
+  <xacro:property name="wheelbase" value="0.135"/>     <!-- 前后轴距 135 mm (CAD 精确轴距) -->
+  <xacro:property name="track_width" value="0.16462"/> <!-- 左右轮距 164.62 mm (CAD 精确轮距) -->
   <xacro:property name="base_length" value="0.220"/>
   <xacro:property name="base_width" value="0.192"/>
   <xacro:property name="base_height" value="0.145"/>
   <xacro:property name="base_mass" value="2.0"/>
   <xacro:property name="wheel_mass" value="0.15"/>
+
 
   <!-- ===== 引入 ros2_control 硬件描述 ===== -->
   <xacro:include filename="$(find smartcar_bringup)/urdf/smartcar.ros2_control.xacro"/>
