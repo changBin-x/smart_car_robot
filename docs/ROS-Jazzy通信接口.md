@@ -10,16 +10,22 @@
 ## 1. 节点拓扑
 
 ```text
-teleop / ros-mcp-server
-        │  TwistStamped
+Linux 手柄设备 (/dev/input/jsX)
+        │
         ▼
-mecanum_drive_controller ──► /odometry, /tf (odom→base_link)
-        │  velocity 命令 ×4
+    joy_node
+        │  sensor_msgs/Joy (/joy)
+        ▼
+teleop_twist_joy_node / ros-mcp-server / teleop_twist_keyboard / Web UI (rosbridge 端口 9090)
+        │  geometry_msgs/TwistStamped
+        ▼
+mecanum_drive_controller ──► /odometry, /tf (odom → base_link)
+        │  velocity 命令 × 4
         ▼
 controller_manager / MecanumSystemHardware (motor_driver)
         │  USB 串口 ASCII
         ▼
-4 路电机驱动板 ──► MG310 ×4
+4 路电机驱动板 ──► MG310 × 4
         │
         ├── $MAll / $MTEP ──► joint 状态
         └── $read_vol ──────► battery_state/voltage
@@ -47,10 +53,13 @@ MPU6050 (I2C-1, 0x68)
 | `/controller_manager` | 节点 | 加载硬件插件与控制器 |
 | `/smartcar_system` | 硬件组件 | `motor_driver/MecanumSystemHardware` 串口驱动 |
 | `/joint_state_broadcaster` | 控制器 | 关节状态 → `/joint_states` |
-| `/mecanum_drive_controller` | 控制器 | 麦轮运动学 + 里程计 + TF |
+| `/mecanum_drive_controller` | 控制器 | 麦轮全向运动学解算（前后轴距 0.135 m，左右轮距 0.16462 m，投影和 $lx+ly=0.14981\text{ m}$） + 里程计 + TF |
 | `/battery_state_broadcaster` | 控制器 | 电压状态 → `/battery_state` |
 | `/mpu6050_sensor` | 节点 | MPU6050 IMU 驱动，发布 `/imu/data_raw` |
-| ros-mcp-server / teleop | 外部 | 向 `reference` 发速度指令 |
+| `/joy_node` | 节点 | Linux 游戏手柄接入驱动（`joy` 包），发布 `/joy` |
+| `/teleop_twist_joy_node` | 节点 | 手柄遥控转换节点（`teleop_twist_joy` 包），解析 `/joy` 转为 `TwistStamped` |
+| `/rosbridge_websocket` | 节点 | WebSocket 通信桥接服务（端口 `9090`，`rosbridge_server` 包），供 Web 上层远程调用 ROS 2 接口 |
+| ros-mcp-server / teleop | 外部 | 向 `/mecanum_drive_controller/reference` 下发速度指令 |
 
 控制循环默认 **50 Hz**（见 `controllers.yaml` 的 `update_rate`）。
 
@@ -60,7 +69,7 @@ MPU6050 (I2C-1, 0x68)
 
 | 话题 (Topic) | 消息类型 (Type) | 方向 | 典型频率 | 发布方 | 含义 |
 |---|---|---|---|---|---|
-| `/mecanum_drive_controller/reference` | `geometry_msgs/msg/TwistStamped` | 订阅 | 由发布方决定（遥控建议 ≥ 10 Hz） | MCP / teleop | 期望车体速度；超时 `reference_timeout=0.5 s` 后清零 |
+| `/mecanum_drive_controller/reference` | `geometry_msgs/msg/TwistStamped` | 订阅 | 由发布方决定（遥控建议 ≥ 10 Hz） | `teleop_twist_joy_node` / MCP / `teleop_twist_keyboard` / WebSocket | 期望车体速度；超时 `reference_timeout=0.5 s` 后清零 |
 | `/mecanum_drive_controller/odometry` | `nav_msgs/msg/Odometry` | 发布 | ~50 Hz | `mecanum_drive_controller` | 轮速积分里程计 |
 | `/mecanum_drive_controller/tf_odometry` | `tf2_msgs/msg/TFMessage` | 发布 | ~50 Hz | `mecanum_drive_controller` | 里程计 TF（若启用） |
 | `/mecanum_drive_controller/controller_state` | `control_msgs/msg/MecanumDriveControllerState` | 发布 | ~50 Hz | `mecanum_drive_controller` | 控制器内部状态（含各轮速度） |
@@ -69,27 +78,12 @@ MPU6050 (I2C-1, 0x68)
 | `/tf` | `tf2_msgs/msg/TFMessage` | 发布 | ~50 Hz | 控制器 + `robot_state_publisher` | 动态坐标变换 |
 | `/tf_static` | `tf2_msgs/msg/TFMessage` | 发布 | 锁存 | `robot_state_publisher` | 静态坐标变换 |
 | `/robot_description` | `std_msgs/msg/String` | 发布 | 锁存 | `robot_state_publisher` | URDF 字符串 |
+| `/joy` | `sensor_msgs/msg/Joy` | 发布 | ~20 Hz | `joy_node` | 手柄物理摇杆与按键原始状态 |
 | `/battery_state` | `sensor_msgs/msg/BatteryState` | 发布 | ~1 Hz | `battery_state_broadcaster` | 电池电压等（见 §3） |
-| `/imu/data_raw` | `sensor_msgs/msg/Imu` | 发布 | ~100 Hz | `mpu6050_sensor` | MPU6050 原始 IMU 数据（见 §8） |
+| `/imu/data_raw` | `sensor_msgs/msg/Imu` | 发布 | ~100 Hz | `mpu6050_sensor` | MPU6050 原始 IMU 数据（见 §6） |
 
 > 说明：`battery_state_broadcaster` 原生话题为 `/battery_state_broadcaster/battery_state`，
 > launch 中已 remap 为 `/battery_state`。
-
-### 键盘遥控示例
-
-Jazzy 的麦轮控制器只收 `TwistStamped`，必须加 `stamped:=true`：
-
-```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-  --ros-args -p stamped:=true \
-  -r /cmd_vel:=/mecanum_drive_controller/reference
-```
-
-### ros-mcp-server 前进示例
-
-话题：`/mecanum_drive_controller/reference`  
-类型：`geometry_msgs/msg/TwistStamped`  
-建议：`linear.x = 0.1`，`rate_hz = 10`，持续数秒后发零速。
 
 ---
 
@@ -145,9 +139,37 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 
 ---
 
-## 8. MPU6050 IMU 接口
+## 5. Xbox 手柄遥控通信接口
 
-### 8.1 硬件连接
+### 5.1 启动与节点拓扑
+
+手柄遥控功能可通过 `smartcar.launch.py` 参数 `use_joy:=true` 一键启动，也可通过 `joy_teleop.launch.py` 独立拉起：
+
+```bash
+ros2 launch smartcar_bringup joy_teleop.launch.py joy_dev:=/dev/input/js0
+```
+
+`joy_teleop.launch.py` 使用 `OpaqueFunction` 实现了智能参数解析机制：
+- 当传入 `joy_dev:=/dev/input/jsX` 时，自动提取后缀数字 `X` 作为整型 `device_id` 传递给 `joy_node`，避免由于设备路径赋给 `device_name` 导致匹配失败。
+- 当传入数字（如 `joy_dev:=0`）时，直接解析为 `device_id` 传入。
+
+### 5.2 摇杆与按键控制映射表
+
+`config/xbox_teleop.yaml` 对标准 Xbox 手柄（Linux `/dev/input/js0`）的映射如下：
+
+| 控制物理量 | 操作方式 | 对应轴 / 按键索引 | 默认限制 | Turbo 加速模式 (RB) |
+|---|---|---|---|---|
+| **前后移动 (`linear.x`)** | 左摇杆上下 | Axis 1 (`axis_linear.x: 1`) | 0.5 m/s | 1.0 m/s |
+| **转弯 / 旋转 (`angular.z`)** | 左摇杆左右 | Axis 0 (`axis_angular.yaw: 0`) | 1.5 rad/s | 3.0 rad/s |
+| **左右平移 (`linear.y`)** | 右摇杆左右 | Axis 3 (`axis_linear.y: 3`) | 0.5 m/s | 1.0 m/s |
+| **安全使能按键** | 按住 LB 键 | Button 4 (`enable_button: 4`) | 必需按住才输出指令 | 必需按住才输出指令 |
+| **提速 Turbo 按键** | 按住 RB 键 | Button 5 (`enable_turbo_button: 5`) | - | 切换至加速模式限速 |
+
+---
+
+## 6. MPU6050 IMU 接口
+
+### 6.1 硬件连接
 
 | MPU6050 引脚 | 树莓派引脚 | 说明 |
 |---|---|---|
@@ -157,7 +179,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 | SCL | Pin 5 (GPIO 3) | I2C 时钟线 |
 | AD0 | GND | 地址选择，接低电平 = 0x68 |
 
-### 8.2 ROS 侧
+### 6.2 ROS 侧
 
 - **话题：** `/imu/data_raw`
 - **类型：** `sensor_msgs/msg/Imu`
@@ -165,7 +187,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - **发布节点：** `mpu6050_sensor`（包 `ros2_mpu6050`，源码位于 `src/ros2_mpu6050`，非 submodule）
 - **I2C 配置：** 设备 `/dev/i2c-1`，地址 `0x68`（参数 `i2c_device` / `i2c_address`）
 
-### 8.3 启动命令
+### 6.3 启动命令
 
 ```bash
 # 仅 IMU（I2C-1, 地址 0x68）
@@ -179,7 +201,7 @@ ros2 launch smartcar_bringup smartcar.launch.py \
   use_mock_hardware:=false serial_port:=/dev/ttyUSB0
 ```
 
-### 8.4 验证
+### 6.4 验证
 
 ```bash
 # 查看 IMU 数据
@@ -191,7 +213,7 @@ ros2 topic hz /imu/data_raw
 
 ---
 
-## 9. 常用服务（运维）
+## 7. 常用服务（运维）
 
 | 服务 (Service) | 类型 | 用途 |
 |---|---|---|
@@ -208,7 +230,7 @@ ros2 control list_hardware_interfaces
 
 ---
 
-## 6. 依赖包提示
+## 8. 依赖包提示
 
 - 工作空间内已包含 `battery_state_broadcaster` 源码包（便于无 root 权限的开发机编译）。
 - 树莓派若已安装 `ros-jazzy-battery-state-broadcaster`，可继续使用系统包；二者不要混用同名冲突版本。
@@ -217,10 +239,11 @@ ros2 control list_hardware_interfaces
 
 ---
 
-## 7. 修订记录
+## 9. 修订记录
 
 | 日期 | 说明 |
 |---|---|
+| 2026-07-23 | 全面重构通信接口说明：补充 `joy_node` 与 `teleop_twist_joy_node` 节点拓扑及 `/joy` 话题表；补充 `/rosbridge_websocket` 服务节点（端口 `9090`）；新增 §5 Xbox 手柄遥控接口章；更新底层麦轮运动学几何参数与投影和数值；按 `/chinese-documentation` 规范化排版 |
 | 2026-07-21 | MPU6050 改为源码纳入；节点读取 `i2c_*` 参数；`smartcar.launch.py` 实机启 IMU |
-| 2026-07-21 | 新增 MPU6050 IMU 接口说明（§8） |
+| 2026-07-21 | 新增 MPU6050 IMU 接口说明（§6） |
 | 2026-07-19 | 初版：补充电池 `/battery_state`、方向标定结论与完整话题表 |
