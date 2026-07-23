@@ -11,7 +11,7 @@
 - **几何参数化**：轮半径、前后轮距、左右轮距均为 xacro 参数，实车测量后集中修改。
 - **全向运动学 + 里程计**：`mecanum_drive_controller` 解算 4 轮速度并发布 `/odom` 与 `odom → base_footprint` 的 TF。
 - **WebSocket 通信桥接**：集成 `rosbridge_server`（`rosbridge_websocket_launch.xml`），提供 9090 端口的 WebSocket 接口，方便 Web 端与小车进行交互。
-- **Xbox 手柄遥控控制**：集成 `joy` 与 `teleop_twist_joy` 控制栈，支持左摇杆上下控制前进/后退、右摇杆左右控制旋转，默认配备 LB 键安全使能与 RB 键加速功能。
+- **Xbox 手柄遥控控制**：集成 `joy` 与 `teleop_twist_joy` 控制栈，支持左摇杆上下控制前后移动、左摇杆左右控制转弯、右摇杆左右控制左右平移，默认配备 LB 键安全使能与 RB 键加速功能。
 
 ## 目录结构
 
@@ -69,10 +69,12 @@ ros2 launch smartcar_bringup joy_teleop.launch.py joy_dev:=/dev/input/js0
 
 `config/xbox_teleop.yaml` 针对标准 Xbox 手柄（Linux `/dev/input/js0`）进行了优化映射：
 
-- **左摇杆上下 (Axis 1)**：控制前进 / 后退（`linear.x`，推上最大 0.5 m/s，拉下 -0.5 m/s）。
-- **右摇杆左右 (Axis 3)**：控制左转 / 右转（`angular.z`，推左最大 1.5 rad/s，推右 -1.5 rad/s）。
+- **左摇杆上下 (Axis 1)**：控制前后移动（`linear.x`，推上最大 0.5 m/s，拉下 -0.5 m/s）。
+- **左摇杆左右 (Axis 0)**：控制左转 / 右转（`angular.z`，推左最大 1.5 rad/s，推右 -1.5 rad/s）。
+- **右摇杆左右 (Axis 3)**：控制左右平移（`linear.y`，推左最大 0.5 m/s，推右 -0.5 m/s）。
 - **LB 键 (Button 4)**：安全使能按键（默认必须按住 LB 键遥控才输出指令，若要取消可将 `require_enable_button` 设为 `false`）。
 - **RB 键 (Button 5)**：提速 Turbo 按键（按住 RB 键可将限速提升至 1.0 m/s / 3.0 rad/s）。
+
 
 输出话题已被重映射至 `/mecanum_drive_controller/reference`（消息类型：`geometry_msgs/msg/TwistStamped`）。
 

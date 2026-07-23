@@ -87,7 +87,7 @@ graph TD
   `velocity` 命令；同时用轮速正运动学积分出 `/odom` 并发布 `odom → base_link` TF。
 - **joint_state_broadcaster**：把 8 个状态接口转发为 `/joint_states`。
 - **rosbridge_server**：启动 WebSocket 服务（包含 `rosbridge_websocket_launch.xml`），默认监听端口 `9090`，方便网页及上层 UI 远程调用 ROS 2 话题与服务。
-- **Xbox 手柄遥控**：启动 `joy_node` 接入 `/dev/input/js0` 设备，由 `teleop_twist_joy_node` 转换左摇杆上下（前进/后退）与右摇杆左右（转向）为 `TwistStamped`。
+- **Xbox 手柄遥控**：启动 `joy_node` 接入 `/dev/input/js0` 设备，由 `teleop_twist_joy_node` 转换左摇杆上下（前后移动）、左摇杆左右（转弯）与右摇杆左右（左右平移）为 `TwistStamped`。
 - **motor_driver**：读——解析驱动板周期上报的编码器计数，换算 rad / rad/s；
   写——把 rad/s 命令换算为 mm/s 下发 `$spd` 指令。详见 [motor_driver/README.md](src/motor_driver/README.md)。
 - **mock 模式**（WSL2）：`<ros2_control>` 内换用 `mock_components/GenericSystem`，

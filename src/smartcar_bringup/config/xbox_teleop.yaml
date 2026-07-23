@@ -11,13 +11,16 @@ teleop_twist_joy_node:
     # 左右摇杆与按键映射
     axis_linear:
       x: 1                    # 左摇杆上下控制前后移动 (Axis 1)
+      y: 3                    # 右摇杆左右控制左右平移 (Axis 3)
     scale_linear:
-      x: 0.5                  # 普通模式最大线速度 (m/s)
+      x: 0.5                  # 普通模式前后最大线速度 (m/s)
+      y: 0.5                  # 普通模式左右平移最大线速度 (m/s)
     scale_linear_turbo:
-      x: 1.0                  # 加速模式最大线速度 (m/s)
+      x: 1.0                  # 加速模式前后最大线速度 (m/s)
+      y: 1.0                  # 加速模式左右平移最大线速度 (m/s)
 
     axis_angular:
-      yaw: 3                  # 右摇杆左右控制旋转 (Axis 3)
+      yaw: 0                  # 左摇杆左右控制旋转/转弯 (Axis 0)
     scale_angular:
       yaw: 1.5                # 普通模式最大角速度 (rad/s)
     scale_angular_turbo:
@@ -29,3 +32,4 @@ teleop_twist_joy_node:
 
     publish_stamped_twist: true  # Jazzy mecanum_drive_controller 需要 TwistStamped
     frame_id: "base_footprint"
+
