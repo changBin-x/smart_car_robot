@@ -1,244 +1,229 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Paper,
   Typography,
   Box,
-  Button,
-  Chip,
   TextField,
-  MenuItem,
   IconButton,
+  Chip,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
-  Tooltip
+  DialogActions
 } from '@mui/material';
-import {
-  Terminal,
-  Pause,
-  Play,
-  Trash2,
-  Search,
-  Code,
-  ArrowUp,
-  ArrowDown
-} from 'lucide-react';
+import { Terminal, Trash2, Pause, Play, Eye, Filter } from 'lucide-react';
 
 export default function DebugConsoleView({ messages = [] }) {
+  const [filterTopic, setFilterTopic] = useState('');
+  const [filterDir, setFilterDir] = useState('ALL');
   const [isPaused, setIsPaused] = useState(false);
-  const [topicFilter, setTopicFilter] = useState('ALL');
-  const [directionFilter, setDirectionFilter] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [displayLogs, setDisplayLogs] = useState([]);
-  const [selectedJson, setSelectedJson] = useState(null);
+  const [selectedMsg, setSelectedMsg] = useState(null);
 
-  useEffect(() => {
-    if (!isPaused) {
-      setDisplayLogs((prev) => {
-        const combined = [...messages, ...prev];
-        return combined.slice(0, 200);
-      });
-    }
-  }, [messages, isPaused]);
-
-  const filteredLogs = displayLogs.filter((log) => {
-    if (topicFilter !== 'ALL' && log.topic !== topicFilter) return false;
-    if (directionFilter !== 'ALL' && log.direction !== directionFilter) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchTopic = log.topic?.toLowerCase().includes(q);
-      const matchStr = JSON.stringify(log.message || {}).toLowerCase().includes(q);
-      return matchTopic || matchStr;
-    }
-    return true;
+  const filtered = messages.filter((msg) => {
+    const matchTopic = msg.topic.toLowerCase().includes(filterTopic.toLowerCase());
+    const matchDir = filterDir === 'ALL' || msg.direction === filterDir;
+    return matchTopic && matchDir;
   });
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 3,
-        bgcolor: 'background.paper',
-        borderRadius: 4,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2.5
-      }}
-    >
-      {/* Header & Controls */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', gap: 2 }}>
+      {/* Console Top Toolbar */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          bgcolor: 'background.paper',
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 2,
+          width: '100%'
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Terminal size={24} color="#7cacf8" />
-          <Box>
-            <Typography variant="h6" color="text.primary">
-              上位机指令调试控制台 (ROS 2 Command & Telemetry Debugger)
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              实时捕获控制指令下发 (Downlink) 与传感器/状态指令上传 (Uplink) 及中间状态
-            </Typography>
-          </Box>
+          <Terminal size={22} color="#7cacf8" />
+          <Typography variant="h6" color="text.primary">
+            ROS 2 指令调试 Console (Real-time Stream)
+          </Typography>
+          <Chip label={`${filtered.length} 条记录`} size="small" color="primary" />
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant={isPaused ? 'contained' : 'outlined'}
-            color={isPaused ? 'warning' : 'primary'}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          {/* Topic filter input */}
+          <TextField
             size="small"
-            startIcon={isPaused ? <Play size={16} /> : <Pause size={16} />}
-            onClick={() => setIsPaused(!isPaused)}
-            sx={{ borderRadius: 5 }}
-          >
-            {isPaused ? '恢复数据流' : '暂停数据流'}
-          </Button>
+            placeholder="过滤话题名称..."
+            value={filterTopic}
+            onChange={(e) => setFilterTopic(e.target.value)}
+            sx={{ width: 180, bgcolor: 'surface.container', borderRadius: 2 }}
+          />
+
+          {/* Direction filter chips */}
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Chip
+              label="全部"
+              size="small"
+              color={filterDir === 'ALL' ? 'primary' : 'default'}
+              onClick={() => setFilterDir('ALL')}
+            />
+            <Chip
+              label="下发 Downlink"
+              size="small"
+              color={filterDir === 'DOWNLINK' ? 'secondary' : 'default'}
+              onClick={() => setFilterDir('DOWNLINK')}
+            />
+            <Chip
+              label="上报 Uplink"
+              size="small"
+              color={filterDir === 'UPLINK' ? 'info' : 'default'}
+              onClick={() => setFilterDir('UPLINK')}
+            />
+          </Box>
 
           <Button
             variant="outlined"
-            color="error"
             size="small"
-            startIcon={<Trash2 size={16} />}
-            onClick={() => setDisplayLogs([])}
-            sx={{ borderRadius: 5 }}
+            color={isPaused ? 'success' : 'warning'}
+            startIcon={isPaused ? <Play size={16} /> : <Pause size={16} />}
+            onClick={() => setIsPaused(!isPaused)}
           >
-            清屏
+            {isPaused ? '继续数据流' : '暂停打印'}
           </Button>
         </Box>
-      </Box>
+      </Paper>
 
-      {/* Filters Bar */}
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', bgcolor: 'surface.container', p: 1.5, borderRadius: 3 }}>
-        <TextField
-          select
-          size="small"
-          label="方向筛选"
-          value={directionFilter}
-          onChange={(e) => setDirectionFilter(e.target.value)}
-          sx={{ minWidth: 140 }}
-        >
-          <MenuItem value="ALL">全部方向</MenuItem>
-          <MenuItem value="UPLINK">UPLINK (小车上传)</MenuItem>
-          <MenuItem value="DOWNLINK">DOWNLINK (控制下发)</MenuItem>
-        </TextField>
-
-        <TextField
-          select
-          size="small"
-          label="话题筛选"
-          value={topicFilter}
-          onChange={(e) => setTopicFilter(e.target.value)}
-          sx={{ minWidth: 220 }}
-        >
-          <MenuItem value="ALL">全部 ROS 2 话题</MenuItem>
-          <MenuItem value="/mecanum_drive_controller/reference">/mecanum_drive_controller/reference</MenuItem>
-          <MenuItem value="/battery_state">/battery_state</MenuItem>
-          <MenuItem value="/imu/data_raw">/imu/data_raw</MenuItem>
-          <MenuItem value="/mecanum_drive_controller/odometry">/mecanum_drive_controller/odometry</MenuItem>
-        </TextField>
-
-        <TextField
-          size="small"
-          placeholder="搜索指令关键词..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: <Search size={16} style={{ color: '#90909a', marginRight: 8 }} />
-          }}
-          sx={{ flex: 1, minWidth: 200 }}
-        />
-      </Box>
-
-      {/* Terminal Log Output List */}
-      <Box
+      {/* Terminal View Body - Dynamic Height Container */}
+      <Paper
+        elevation={0}
         sx={{
-          height: 520,
-          bgcolor: '#090d14',
-          borderRadius: 3,
+          flex: 1,
+          width: '100%',
+          minHeight: 'calc(100vh - 240px)',
           p: 2,
+          bgcolor: '#0d1117',
+          borderRadius: 4,
+          fontFamily: 'monospace',
           overflowY: 'auto',
-          fontFamily: '"JetBrains Mono", monospace',
-          fontSize: '0.85rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: 1,
-          border: '1px solid rgba(255, 255, 255, 0.08)'
+          border: '1px solid rgba(255,255,255,0.1)'
         }}
       >
-        {filteredLogs.length === 0 ? (
-          <Box sx={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'text.secondary' }}>
-            暂无匹配的控制/状态指令数据包
-          </Box>
-        ) : (
-          filteredLogs.map((log, idx) => {
-            const isUplink = log.direction === 'UPLINK';
-            const timeStr = log.timestamp || new Date().toLocaleTimeString();
-
-            return (
-              <Box
-                key={idx}
-                sx={{
-                  p: 1,
-                  borderRadius: 2,
-                  bgcolor: isUplink ? 'rgba(30, 41, 59, 0.5)' : 'rgba(37, 99, 235, 0.15)',
-                  borderLeft: `4px solid ${isUplink ? '#4edea3' : '#3b82f6'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 2
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden' }}>
-                  <Chip
-                    icon={isUplink ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                    label={log.direction}
-                    color={isUplink ? 'success' : 'primary'}
-                    size="small"
-                    sx={{ height: 22, fontSize: '0.7rem' }}
-                  />
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
-                    [{timeStr}]
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', fontFamily: 'monospace' }}>
-                    {log.topic}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', noWrap: true, fontFamily: 'monospace' }}>
-                    {JSON.stringify(log.message).slice(0, 90)}...
-                  </Typography>
-                </Box>
-
-                <Tooltip title="查看 JSON 原包数据">
-                  <IconButton size="small" onClick={() => setSelectedJson(log.message)}>
-                    <Code size={16} color="#7cacf8" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            );
-          })
-        )}
-      </Box>
-
-      {/* Raw JSON Dialog */}
-      <Dialog open={Boolean(selectedJson)} onClose={() => setSelectedJson(null)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontFamily: 'monospace' }}>ROS 2 Message Raw JSON</DialogTitle>
-        <DialogContent dividers>
+        {filtered.length === 0 ? (
           <Box
-            component="pre"
             sx={{
-              p: 2,
-              bgcolor: '#090d14',
-              borderRadius: 2,
-              color: '#4edea3',
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: '0.85rem',
-              overflowX: 'auto'
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              color: 'text.secondary',
+              gap: 1
             }}
           >
-            {JSON.stringify(selectedJson, null, 2)}
+            <Filter size={32} />
+            <Typography variant="body2">暂无符合条件的控制/状态指令传输日志</Typography>
           </Box>
+        ) : (
+          filtered.map((item, index) => (
+            <Box
+              key={index}
+              sx={{
+                py: 1,
+                px: 1.5,
+                borderRadius: 2,
+                mb: 0.5,
+                bgcolor: index % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.05)' },
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden' }}>
+                <Typography variant="caption" sx={{ color: '#6e7681', flexShrink: 0 }}>
+                  [{item.timestamp}]
+                </Typography>
+
+                <Chip
+                  label={item.direction}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.7rem',
+                    bgcolor: item.direction === 'DOWNLINK' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                    color: item.direction === 'DOWNLINK' ? '#f472b6' : '#60a5fa',
+                    border: '1px solid',
+                    borderColor: item.direction === 'DOWNLINK' ? '#ec4899' : '#3b82f6',
+                    flexShrink: 0
+                  }}
+                />
+
+                <Typography variant="body2" sx={{ color: '#a5d6ff', fontWeight: 600, flexShrink: 0 }}>
+                  {item.topic}
+                </Typography>
+
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: '#c9d1d9',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                >
+                  {JSON.stringify(item.message)}
+                </Typography>
+              </Box>
+
+              <IconButton size="small" onClick={() => setSelectedMsg(item)} sx={{ color: '#7d8590' }}>
+                <Eye size={16} />
+              </IconButton>
+            </Box>
+          ))
+        )}
+      </Paper>
+
+      {/* JSON Payload Detail Dialog */}
+      <Dialog
+        open={Boolean(selectedMsg)}
+        onClose={() => setSelectedMsg(null)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 4 } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">指令 RAW JSON 数据载荷详情</Typography>
+          {selectedMsg && <Chip label={selectedMsg.topic} color="primary" size="small" />}
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedMsg && (
+            <Box
+              component="pre"
+              sx={{
+                p: 2,
+                bgcolor: '#0d1117',
+                borderRadius: 3,
+                color: '#7ee787',
+                fontFamily: 'monospace',
+                fontSize: '0.85rem',
+                overflowX: 'auto'
+              }}
+            >
+              {JSON.stringify(selectedMsg.message, null, 2)}
+            </Box>
+          )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectedJson(null)}>关闭</Button>
+        <DialogActions sx={{ p: 2 }}>
+          <Button variant="contained" onClick={() => setSelectedMsg(null)}>
+            关闭
+          </Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </Box>
   );
 }

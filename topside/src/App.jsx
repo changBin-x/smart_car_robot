@@ -14,7 +14,6 @@ export default function App() {
   const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-    // Connect to ROS Bridge on app mount
     rosService.connect();
 
     const unsubscribe = rosService.subscribe((data) => {
@@ -30,7 +29,7 @@ export default function App() {
             message: data.message,
             timestamp: new Date().toLocaleTimeString()
           },
-          ...prev.slice(0, 100) // Keep recent 100 messages in state
+          ...prev.slice(0, 100)
         ]);
       }
     });
@@ -48,7 +47,16 @@ export default function App() {
   return (
     <ThemeProvider theme={md3DarkTheme}>
       <CssBaseline />
-      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pb: 4 }}>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          width: '100vw',
+          display: 'flex',
+          flexDirection: 'column',
+          bgcolor: 'background.default',
+          overflowX: 'hidden'
+        }}
+      >
         <Navbar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -57,7 +65,19 @@ export default function App() {
           onReconnect={handleReconnect}
         />
 
-        <Container maxWidth="xl" sx={{ mt: 3 }}>
+        {/* Full-width responsive container filling viewport */}
+        <Container
+          maxWidth={false}
+          disableGutters
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            px: { xs: 2, sm: 3, md: 4 },
+            py: 3,
+            width: '100%'
+          }}
+        >
           {activeTab === 'DASHBOARD' && <DashboardView telemetry={telemetry} />}
           {activeTab === 'DEBUG' && <DebugConsoleView messages={messages} />}
           {activeTab === 'QUERY' && <DataQueryView />}

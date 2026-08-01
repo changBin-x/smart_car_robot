@@ -3,7 +3,7 @@ import { Paper, Typography, Box, Button, IconButton, TextField, Tooltip, Chip } 
 import { Map, Video, VideoOff, Settings, MapPin, RefreshCw } from 'lucide-react';
 
 export default function MapCameraView({ odomX = 0, odomY = 0 }) {
-  const [viewMode, setViewMode] = useState('MAP'); // 'MAP' | 'CAMERA'
+  const [viewMode, setViewMode] = useState('MAP');
   const [amapKey, setAmapKey] = useState('');
   const [showConfig, setShowConfig] = useState(false);
 
@@ -17,10 +17,12 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        width: '100%',
+        minHeight: 360,
         position: 'relative'
       }}
     >
-      {/* Header bar with Mode Toggle & Settings */}
+      {/* Header bar */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {viewMode === 'MAP' ? <Map size={20} color="#7cacf8" /> : <Video size={20} color="#7cacf8" />}
@@ -30,7 +32,6 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {/* Map vs Camera Switch Button */}
           <Button
             variant="contained"
             size="small"
@@ -75,7 +76,8 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
       <Box
         sx={{
           flex: 1,
-          minHeight: 260,
+          width: '100%',
+          minHeight: 280,
           borderRadius: 3,
           overflow: 'hidden',
           position: 'relative',
@@ -91,7 +93,6 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
             sx={{
               width: '100%',
               height: '100%',
-              minHeight: 260,
               background: 'radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%)',
               display: 'flex',
               flexDirection: 'column',
@@ -101,7 +102,6 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
               p: 2
             }}
           >
-            {/* Grid Overlay */}
             <Box
               sx={{
                 position: 'absolute',
@@ -112,7 +112,6 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
               }}
             />
 
-            {/* Target Car Marker */}
             <Box
               sx={{
                 zIndex: 2,
@@ -145,7 +144,6 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
               />
             </Box>
 
-            {/* Map Status Badge */}
             <Box sx={{ position: 'absolute', bottom: 12, right: 12, zIndex: 3 }}>
               <Chip
                 label={amapKey ? '高德地图 API 已载入' : '高德地图 (使用高精里程计坐标定位中)'}
@@ -160,7 +158,6 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
             sx={{
               width: '100%',
               height: '100%',
-              minHeight: 260,
               bgcolor: '#090d14',
               display: 'flex',
               flexDirection: 'column',

@@ -21,7 +21,7 @@ export default function DashboardView({ telemetry }) {
   } = telemetry;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, width: '100%' }}>
       {/* Top Velocity & Telemetry Bar */}
       <Paper
         elevation={0}
@@ -33,7 +33,8 @@ export default function DashboardView({ telemetry }) {
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: 2
+          gap: 2,
+          width: '100%'
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -58,7 +59,7 @@ export default function DashboardView({ telemetry }) {
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.secondary" display="block">
               前后线速度 Vx
@@ -88,25 +89,27 @@ export default function DashboardView({ telemetry }) {
         </Box>
       </Paper>
 
-      {/* Main Grid Layout */}
-      <Grid container spacing={3}>
-        <Grid item xs={12} lg={8}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
+      {/* Main Fluid Grid Layout */}
+      <Grid container spacing={3} sx={{ flex: 1, width: '100%', alignItems: 'stretch' }}>
+        {/* Left Column: Map/Camera & Control Panel */}
+        <Grid item xs={12} lg={7} xl={8} sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Grid container spacing={3} sx={{ flex: 1, alignItems: 'stretch' }}>
+            <Grid item xs={12} sx={{ display: 'flex' }}>
               <MapCameraView odomX={odomX} odomY={odomY} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sx={{ display: 'flex' }}>
               <ControlPanel />
             </Grid>
           </Grid>
         </Grid>
 
-        <Grid item xs={12} lg={4}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
+        {/* Right Column: Battery & 3D Pose */}
+        <Grid item xs={12} lg={5} xl={4} sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Grid container spacing={3} sx={{ flex: 1, alignItems: 'stretch' }}>
+            <Grid item xs={12} sx={{ display: 'flex' }}>
               <BatteryWidget voltage={voltage} percentage={percentage} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sx={{ display: 'flex' }}>
               <Car3DView roll={roll} pitch={pitch} yaw={yaw} />
             </Grid>
           </Grid>

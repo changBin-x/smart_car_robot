@@ -11,8 +11,8 @@ export default function Car3DView({ roll = 0, pitch = 0, yaw = 0 }) {
     const container = mountRef.current;
     if (!container) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight || 280;
+    const width = container.clientWidth || 300;
+    const height = container.clientHeight || 260;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x161b26);
@@ -41,7 +41,7 @@ export default function Car3DView({ roll = 0, pitch = 0, yaw = 0 }) {
 
     const carGroup = new THREE.Group();
 
-    // Chassis Box
+    // Chassis
     const chassisGeo = new THREE.BoxGeometry(1.2, 0.25, 0.9);
     const chassisMat = new THREE.MeshStandardMaterial({
       color: 0x2563eb,
@@ -58,7 +58,7 @@ export default function Car3DView({ roll = 0, pitch = 0, yaw = 0 }) {
     topCover.position.set(0, 0.18, 0);
     carGroup.add(topCover);
 
-    // Front Direction Arrow
+    // Arrow Indicator
     const arrowGeo = new THREE.ConeGeometry(0.18, 0.4, 4);
     const arrowMat = new THREE.MeshStandardMaterial({ color: 0x4edea3, emissive: 0x10b981 });
     const arrow = new THREE.Mesh(arrowGeo, arrowMat);
@@ -66,7 +66,7 @@ export default function Car3DView({ roll = 0, pitch = 0, yaw = 0 }) {
     arrow.position.set(0.5, 0.15, 0);
     carGroup.add(arrow);
 
-    // 4 Wheels
+    // Wheels
     const wheelGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.12, 16);
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8 });
 
@@ -94,19 +94,24 @@ export default function Car3DView({ roll = 0, pitch = 0, yaw = 0 }) {
     };
     animate();
 
-    const handleResize = () => {
-      if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight || 280;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    };
-    window.addEventListener('resize', handleResize);
+    // ResizeObserver for modern fluid layout adaptation
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        const h = entry.contentRect.height;
+        if (w > 0 && h > 0) {
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        }
+      }
+    });
+
+    resizeObserver.observe(container);
 
     return () => {
       cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
@@ -133,6 +138,8 @@ export default function Car3DView({ roll = 0, pitch = 0, yaw = 0 }) {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        width: '100%',
+        minHeight: 340,
         position: 'relative'
       }}
     >
@@ -146,15 +153,17 @@ export default function Car3DView({ roll = 0, pitch = 0, yaw = 0 }) {
         <Chip label="Three.js Live" color="primary" size="small" variant="outlined" />
       </Box>
 
-      {/* 3D Canvas Mount Point */}
+      {/* Fluid 3D Canvas Container */}
       <Box
         ref={mountRef}
         sx={{
+          flex: 1,
           width: '100%',
-          height: 240,
+          minHeight: 220,
           borderRadius: 3,
           overflow: 'hidden',
-          bgcolor: 'surface.container'
+          bgcolor: 'surface.container',
+          position: 'relative'
         }}
       />
 
