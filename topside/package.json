@@ -11,6 +11,7 @@
     "start": "concurrently \"npm run server\" \"npm run dev\""
   },
   "dependencies": {
+    "@amap/amap-jsapi-loader": "^1.0.1",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
     "@esbuild/linux-x64": "^0.20.2",
