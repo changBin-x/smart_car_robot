@@ -6,7 +6,7 @@
 驱动 4 路电机驱动板，闭环控制 4 个 MG310 霍尔编码器减速电机。
 
 - 开发/仿真环境：WSL2 + Ubuntu 24.04（mock 硬件，无串口）
-- 部署环境：树莓派 4B + Ubuntu 24.04 Server（实机串口 `/dev/ttyUSB0`，可配置）。树莓派 4B 的默认 IP 是 `192.168.10.18`，账户名是 `robot`，WSL2 可以免密登录进入树莓派 4B 的 shell，树莓派使用 zsh 终端，Python 路径在 `~/Documents/ros2_venv/bin/python3`。项目代码在树莓派 4B 的 `~/projects/smart_car_robot` 目录下，树莓派 4B 只能从远程仓库拉取最新代码，禁止在树莓派上修改和推送代码。
+- 部署环境：树莓派 4B + Ubuntu 24.04 Server（实机串口 `/dev/ttyUSB0`，可配置）。树莓派 4B 的默认 IP 是 `192.168.10.11`，账户名是 `robot`，WSL2 可以免密登录进入树莓派 4B 的 shell，树莓派使用 zsh 终端，Python 路径在 `~/Documents/ros2_venv/bin/python3`。项目代码在树莓派 4B 的 `~/projects/smart_car_robot` 目录下，树莓派 4B 只能从远程仓库拉取最新代码，禁止在树莓派上修改和推送代码。
 
 ## 1. 硬件清单
 
@@ -261,12 +261,11 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - [x] **任务 2**：`motor_driver` 硬件接口插件（串口协议实现 + 完整生命周期 + 故障容错）
 - [x] **任务 3**：`smartcar_bringup`（xacro 模型、controllers.yaml、launch、验证文档）
 - [x] WSL2 mock 验收：前进 / 横移 / 原地旋转的 `/odom` 方向验证
-- [x] 树莓派实机联调：几何参数（轴距 0.135 m、轮距 0.16462 m）与运动学投影和（0.14981 m）校准回填
+- [ ] 树莓派实机联调：编码器倍频 K 标定、轮距实测回填
 - [x] 电机方向系数校准（2026-07-19：`direction_m2/m3=-1`）
 - [x] 电池电量：`$read_vol#` → `/battery_state`（`sensor_msgs/BatteryState`）
 - [x] 接入 WebSocket 桥接（`rosbridge_server` 端口 9090）
-- [x] 集成 Xbox 手柄遥控（`joy` + `teleop_twist_joy`，支持自动解析设备 ID 与自定义映射）
-- [x] 接入 MPU6050 IMU 传感器驱动（`ros2_mpu6050` 发布 `/imu/data_raw`）
+- [x] 集成 Xbox 手柄遥控（`joy` + `teleop_twist_joy`）
 - [ ] udev 规则固定串口别名（`/dev/smartcar_driver`）
 - [ ] 加入 IMU + `ekf`（robot_localization）融合里程计
 - [ ] 接入 Nav2 导航栈与 SLAM（slam_toolbox）
