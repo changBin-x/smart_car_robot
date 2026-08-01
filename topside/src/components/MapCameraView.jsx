@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Paper, Typography, Box, Button, IconButton, TextField, Tooltip, Chip, Alert } from '@mui/material';
-import { Map, Video, VideoOff, Settings, MapPin, RefreshCw, Navigation, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Map,
+  Video,
+  VideoOff,
+  Settings,
+  MapPin,
+  RefreshCw,
+  Navigation,
+  CheckCircle2,
+  AlertCircle,
+  ZoomIn,
+  ZoomOut,
+  Target
+} from 'lucide-react';
 
 // Default Coordinates: 宁波市鄞州区
 const NINGBO_YINZHOU_LNG = 121.5497;
@@ -14,14 +27,26 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
+  // Zoom Level state for both AMap & fallback map
+  const [zoomLevel, setZoomLevel] = useState(15);
+
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
 
+  // Helper to ensure valid numeric Lng/Lat coordinates (prevents Pixel(NaN, 0) error)
+  const getSafeCoordinates = () => {
+    const safeX = typeof odomX === 'number' && !isNaN(odomX) ? odomX : 0;
+    const safeY = typeof odomY === 'number' && !isNaN(odomY) ? odomY : 0;
+    const lng = Number((NINGBO_YINZHOU_LNG + safeX * 0.00001).toFixed(6));
+    const lat = Number((NINGBO_YINZHOU_LAT + safeY * 0.00001).toFixed(6));
+    return [lng, lat];
+  };
+
   // Direct AMap v2 Script Injector
   const loadAMapV2 = (key, secCode) => {
     return new Promise((resolve, reject) => {
-      // 1. MUST set _AMapSecurityConfig BEFORE appending script tag
+      // 1. Set _AMapSecurityConfig before appending script tag
       if (secCode.trim()) {
         window._AMapSecurityConfig = {
           securityJsCode: secCode.trim()
@@ -32,13 +57,11 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
         };
       }
 
-      // If AMap API is already present on window
       if (window.AMap && window.AMap.Map) {
         resolve(window.AMap);
         return;
       }
 
-      // Remove existing script if any
       const existingScript = document.getElementById('amap-v2-sdk');
       if (existingScript) existingScript.remove();
 
@@ -75,48 +98,65 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
     let isMounted = true;
     setLoadError(null);
 
-    loadAMapV2(amapKey, securityCode)
-      .then((AMap) => {
-        if (!isMounted || !mapContainerRef.current) return;
+    // Delay instantiation slightly until container size is computed (prevents Pixel(NaN, 0))
+    const timer = setTimeout(() => {
+      loadAMapV2(amapKey, securityCode)
+        .then((AMap) => {
+          if (!isMounted || !mapContainerRef.current) return;
 
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.destroy();
-        }
+          const [lng, lat] = getSafeCoordinates();
 
-        const currentLng = NINGBO_YINZHOU_LNG + odomX * 0.00001;
-        const currentLat = NINGBO_YINZHOU_LAT + odomY * 0.00001;
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.destroy();
+          }
 
-        const map = new AMap.Map(mapContainerRef.current, {
-          viewMode: '3D',
-          zoom: 15,
-          center: [currentLng, currentLat],
-          mapStyle: 'amap://styles/darkblue'
+          const map = new AMap.Map(mapContainerRef.current, {
+            viewMode: '3D',
+            zoom: zoomLevel,
+            zooms: [3, 20],
+            center: [lng, lat],
+            mapStyle: 'amap://styles/darkblue',
+            scrollWheel: true,
+            dragEnable: true,
+            zoomEnable: true,
+            touchZoom: true,
+            doubleClickZoom: true,
+            keyboardEnable: true
+          });
+
+          // Add scale and toolbar
+          map.addControl(new AMap.Scale());
+          map.addControl(new AMap.ToolBar());
+
+          // Listen to zoom changes
+          map.on('zoomchange', () => {
+            if (isMounted) setZoomLevel(Math.round(map.getZoom()));
+          });
+
+          const marker = new AMap.Marker({
+            position: new AMap.LngLat(lng, lat),
+            title: 'SmartCar Robot - 宁波市鄞州区',
+            offset: new AMap.Pixel(-13, -30)
+          });
+
+          map.add(marker);
+
+          mapInstanceRef.current = map;
+          markerRef.current = marker;
+          setMapLoaded(true);
+        })
+        .catch((err) => {
+          if (isMounted) {
+            console.error('AMap load error:', err);
+            setLoadError(err.message || '高德 API Key 校验未通过，请检查 Key 与安全密钥');
+            setMapLoaded(false);
+          }
         });
-
-        map.addControl(new AMap.Scale());
-        map.addControl(new AMap.ToolBar());
-
-        const marker = new AMap.Marker({
-          position: new AMap.LngLat(currentLng, currentLat),
-          title: 'SmartCar Robot - 宁波市鄞州区'
-        });
-
-        map.add(marker);
-
-        mapInstanceRef.current = map;
-        markerRef.current = marker;
-        setMapLoaded(true);
-      })
-      .catch((err) => {
-        if (isMounted) {
-          console.error('AMap load error:', err);
-          setLoadError(err.message || '高德 API Key 校验未通过，请确认 Web 平台类型 Key');
-          setMapLoaded(false);
-        }
-      });
+    }, 100);
 
     return () => {
       isMounted = false;
+      clearTimeout(timer);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.destroy();
         mapInstanceRef.current = null;
@@ -127,17 +167,43 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
   // Update marker position dynamically on Odometry updates
   useEffect(() => {
     if (mapInstanceRef.current && markerRef.current && window.AMap) {
-      const currentLng = NINGBO_YINZHOU_LNG + odomX * 0.00001;
-      const currentLat = NINGBO_YINZHOU_LAT + odomY * 0.00001;
-      markerRef.current.setPosition(new window.AMap.LngLat(currentLng, currentLat));
+      const [lng, lat] = getSafeCoordinates();
+      markerRef.current.setPosition(new window.AMap.LngLat(lng, lat));
     }
   }, [odomX, odomY]);
+
+  // Zoom Controls Handlers
+  const handleZoomIn = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomIn();
+    } else {
+      setZoomLevel((prev) => Math.min(prev + 1, 20));
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomOut();
+    } else {
+      setZoomLevel((prev) => Math.max(prev - 1, 3));
+    }
+  };
+
+  const handleResetCenter = () => {
+    const [lng, lat] = getSafeCoordinates();
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setZoomAndCenter(15, [lng, lat]);
+    }
+    setZoomLevel(15);
+  };
 
   const handleSaveConfig = () => {
     localStorage.setItem('smartcar_amap_key', amapKey.trim());
     localStorage.setItem('smartcar_amap_security', securityCode.trim());
     setShowConfig(false);
   };
+
+  const [lng, lat] = getSafeCoordinates();
 
   return (
     <Paper
@@ -202,7 +268,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
           }}
         >
           <Typography variant="caption" color="text.secondary">
-            高德 Web 端(JS API) Key 与安全密钥 (高德开放平台控制台需申请 Web 端应用)
+            高德 Web 端 (JS API) Key 与安全密钥 (请输入高德开放平台控制台申请的 Web 端 Key)
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <TextField
@@ -258,7 +324,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
               }}
             />
 
-            {/* High-definition Vector Interactive Map Centered at 宁波市鄞州区 */}
+            {/* Interactive Vector Map Centered at 宁波市鄞州区 */}
             {!mapLoaded && (
               <Box
                 sx={{
@@ -270,24 +336,34 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   position: 'relative',
-                  p: 2
+                  p: 2,
+                  overflow: 'hidden'
                 }}
               >
-                {/* Map Grid Pattern */}
+                {/* Map Grid Pattern with Zoom Scaling */}
                 <Box
                   sx={{
                     position: 'absolute',
                     inset: 0,
                     backgroundImage:
                       'linear-gradient(rgba(124, 172, 248, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(124, 172, 248, 0.08) 1px, transparent 1px)',
-                    backgroundSize: '40px 40px',
-                    opacity: 0.8
+                    backgroundSize: `${40 * (zoomLevel / 15)}px ${40 * (zoomLevel / 15)}px`,
+                    opacity: 0.8,
+                    transition: 'background-size 0.3s ease'
                   }}
                 />
 
                 {/* Simulated Road Lines */}
                 <svg
-                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.4 }}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0.4,
+                    transform: `scale(${zoomLevel / 15})`,
+                    transition: 'transform 0.3s ease'
+                  }}
                   viewBox="0 0 800 400"
                 >
                   <line x1="0" y1="180" x2="800" y2="180" stroke="#7cacf8" strokeWidth="3" strokeDasharray="8 4" />
@@ -300,7 +376,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                 <Box sx={{ position: 'absolute', top: 20, left: 20, zIndex: 3, display: 'flex', gap: 1 }}>
                   <Chip
                     icon={<Navigation size={14} />}
-                    label="浙江省宁波市鄞州区 (29.8082°N, 121.5497°E)"
+                    label={`浙江省宁波市鄞州区 (${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E)`}
                     color="primary"
                     size="small"
                   />
@@ -333,20 +409,62 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                     <MapPin size={28} color="#7cacf8" />
                   </Box>
                   <Chip
-                    label={`SmartCar 鄞州区中心 (X: ${odomX.toFixed(2)}m, Y: ${odomY.toFixed(2)}m)`}
+                    label={`SmartCar 鄞州区 (X: ${odomX.toFixed(2)}m, Y: ${odomY.toFixed(2)}m)`}
                     color="primary"
                     size="small"
                     sx={{ fontWeight: 600 }}
                   />
                 </Box>
-
-                <Box sx={{ position: 'absolute', bottom: 12, right: 12, zIndex: 3 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ bgcolor: 'rgba(15, 23, 42, 0.8)', p: 0.8, borderRadius: 1.5 }}>
-                    点击右上角⚙️图标可随时校验并载入高德 JS API 离线/在线瓦片全图层
-                  </Typography>
-                </Box>
               </Box>
             )}
+
+            {/* Floating Zoom & Location Controls Bar */}
+            <Box
+              sx={{
+                position: 'absolute',
+                right: 16,
+                bottom: 16,
+                zIndex: 10,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+                bgcolor: 'rgba(15, 23, 42, 0.85)',
+                p: 0.8,
+                borderRadius: 3,
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <Tooltip title="放大地图 (Zoom In)">
+                <IconButton size="small" onClick={handleZoomIn} sx={{ color: 'text.primary' }}>
+                  <ZoomIn size={18} />
+                </IconButton>
+              </Tooltip>
+
+              <Chip
+                label={`${zoomLevel}x`}
+                size="small"
+                sx={{
+                  height: 22,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  bgcolor: 'surface.container',
+                  color: 'primary.light'
+                }}
+              />
+
+              <Tooltip title="缩小地图 (Zoom Out)">
+                <IconButton size="small" onClick={handleZoomOut} sx={{ color: 'text.primary' }}>
+                  <ZoomOut size={18} />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title="居中鄞州区定位">
+                <IconButton size="small" onClick={handleResetCenter} sx={{ color: 'status.ok' }}>
+                  <Target size={18} />
+                </IconButton>
+              </Tooltip>
+            </Box>
           </Box>
         ) : (
           <Box
