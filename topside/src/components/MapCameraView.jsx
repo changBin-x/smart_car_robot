@@ -19,22 +19,25 @@ import {
 const NINGBO_YINZHOU_LNG = 121.5497;
 const NINGBO_YINZHOU_LAT = 29.8082;
 
+// User's Verified AMap API Credentials
+const DEFAULT_AMAP_KEY = 'e5d9a357843cb149b80dcc0f9e126b24';
+const DEFAULT_AMAP_SECURITY = '3a7ab9b46a757f8e366cb63027813ea8';
+
 export default function MapCameraView({ odomX = 0, odomY = 0 }) {
   const [viewMode, setViewMode] = useState('MAP');
-  const [amapKey, setAmapKey] = useState(() => localStorage.getItem('smartcar_amap_key') || '');
-  const [securityCode, setSecurityCode] = useState(() => localStorage.getItem('smartcar_amap_security') || '');
+  const [amapKey, setAmapKey] = useState(() => localStorage.getItem('smartcar_amap_key') || DEFAULT_AMAP_KEY);
+  const [securityCode, setSecurityCode] = useState(() => localStorage.getItem('smartcar_amap_security') || DEFAULT_AMAP_SECURITY);
   const [showConfig, setShowConfig] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
-  // Zoom Level state for both AMap & fallback map
   const [zoomLevel, setZoomLevel] = useState(15);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
 
-  // Helper to ensure valid numeric Lng/Lat coordinates (prevents Pixel(NaN, 0) error)
+  // Helper to ensure valid numeric Lng/Lat coordinates
   const getSafeCoordinates = () => {
     const safeX = typeof odomX === 'number' && !isNaN(odomX) ? odomX : 0;
     const safeY = typeof odomY === 'number' && !isNaN(odomY) ? odomY : 0;
@@ -46,16 +49,13 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
   // Direct AMap v2 Script Injector
   const loadAMapV2 = (key, secCode) => {
     return new Promise((resolve, reject) => {
-      // 1. Set _AMapSecurityConfig before appending script tag
-      if (secCode.trim()) {
-        window._AMapSecurityConfig = {
-          securityJsCode: secCode.trim()
-        };
-      } else {
-        window._AMapSecurityConfig = {
-          securityJsCode: ''
-        };
-      }
+      const activeSecCode = secCode.trim() || DEFAULT_AMAP_SECURITY;
+      const activeKey = key.trim() || DEFAULT_AMAP_KEY;
+
+      // 1. MUST set _AMapSecurityConfig before appending script tag
+      window._AMapSecurityConfig = {
+        securityJsCode: activeSecCode
+      };
 
       if (window.AMap && window.AMap.Map) {
         resolve(window.AMap);
@@ -68,7 +68,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
       const script = document.createElement('script');
       script.id = 'amap-v2-sdk';
       script.type = 'text/javascript';
-      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key.trim())}&plugin=AMap.Scale,AMap.ToolBar,AMap.Marker`;
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(activeKey)}&plugin=AMap.Scale,AMap.ToolBar,AMap.Marker`;
 
       script.onload = () => {
         if (window.AMap && window.AMap.Map) {
@@ -79,7 +79,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
       };
 
       script.onerror = () => {
-        reject(new Error('高德 SDK 网络请求失败，请检查 Key 与安全密钥组合是否正确'));
+        reject(new Error('高德 SDK 网络请求失败，请检查 Key 与安全密钥组合'));
       };
 
       document.head.appendChild(script);
@@ -90,17 +90,14 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
   useEffect(() => {
     if (viewMode !== 'MAP') return;
 
-    if (!amapKey.trim()) {
-      setMapLoaded(false);
-      return;
-    }
+    const activeKey = amapKey.trim() || DEFAULT_AMAP_KEY;
+    const activeSec = securityCode.trim() || DEFAULT_AMAP_SECURITY;
 
     let isMounted = true;
     setLoadError(null);
 
-    // Delay instantiation slightly until container size is computed (prevents Pixel(NaN, 0))
     const timer = setTimeout(() => {
-      loadAMapV2(amapKey, securityCode)
+      loadAMapV2(activeKey, activeSec)
         .then((AMap) => {
           if (!isMounted || !mapContainerRef.current) return;
 
@@ -124,11 +121,9 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
             keyboardEnable: true
           });
 
-          // Add scale and toolbar
-          map.addControl(new AMap.Scale());
-          map.addControl(new AMap.ToolBar());
+          if (AMap.Scale) map.addControl(new AMap.Scale());
+          if (AMap.ToolBar) map.addControl(new AMap.ToolBar());
 
-          // Listen to zoom changes
           map.on('zoomchange', () => {
             if (isMounted) setZoomLevel(Math.round(map.getZoom()));
           });
@@ -136,7 +131,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
           const marker = new AMap.Marker({
             position: new AMap.LngLat(lng, lat),
             title: 'SmartCar Robot - 宁波市鄞州区',
-            offset: new AMap.Pixel(-13, -30)
+            anchor: 'bottom-center'
           });
 
           map.add(marker);
@@ -148,7 +143,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
         .catch((err) => {
           if (isMounted) {
             console.error('AMap load error:', err);
-            setLoadError(err.message || '高德 API Key 校验未通过，请检查 Key 与安全密钥');
+            setLoadError(err.message || '高德 API Key 校验未通过');
             setMapLoaded(false);
           }
         });
@@ -268,13 +263,13 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
           }}
         >
           <Typography variant="caption" color="text.secondary">
-            高德 Web 端 (JS API) Key 与安全密钥 (请输入高德开放平台控制台申请的 Web 端 Key)
+            高德 Web 端 (JS API) Key 与安全密钥配置
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <TextField
               size="small"
               label="高德 Web API Key"
-              placeholder="请输入 Web 端 Key"
+              placeholder="e5d9a357843cb149b80dcc0f9e126b24"
               value={amapKey}
               onChange={(e) => setAmapKey(e.target.value)}
               sx={{ bgcolor: 'background.default', borderRadius: 2, flex: 2, minWidth: 200 }}
@@ -282,7 +277,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
             <TextField
               size="small"
               label="安全密钥 securityJsCode"
-              placeholder="请输入安全密钥 (选填)"
+              placeholder="3a7ab9b46a757f8e366cb63027813ea8"
               value={securityCode}
               onChange={(e) => setSecurityCode(e.target.value)}
               sx={{ bgcolor: 'background.default', borderRadius: 2, flex: 1, minWidth: 160 }}
@@ -340,7 +335,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                   overflow: 'hidden'
                 }}
               >
-                {/* Map Grid Pattern with Zoom Scaling */}
+                {/* Map Grid Pattern */}
                 <Box
                   sx={{
                     position: 'absolute',
@@ -380,7 +375,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                     color="primary"
                     size="small"
                   />
-                  <Chip label="地图就绪模式" size="small" variant="outlined" />
+                  <Chip label="加载高德全要素地图中..." size="small" color="info" />
                 </Box>
 
                 {/* Center Car Marker */}
