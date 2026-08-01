@@ -22,7 +22,7 @@ export default function DashboardView({ telemetry }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, width: '100%' }}>
-      {/* Top Velocity & Telemetry Bar */}
+      {/* Top Velocity & Telemetry Header Bar */}
       <Paper
         elevation={0}
         sx={{
@@ -89,37 +89,26 @@ export default function DashboardView({ telemetry }) {
         </Box>
       </Paper>
 
-      {/* Main Grid Layout */}
-      {/* 
-        Layout Requirements:
-        1. Map View (MapCameraView) at Top-Left
-        2. 3D Car Pose View (Car3DView) at Top-Right (Right of Map View)
-        3. BatteryWidget & ControlPanel placed in the SAME ROW, directly below Map View
-      */}
+      {/* Main 2-Column Balanced Dashboard Layout (Zero empty space) */}
       <Grid container spacing={3} sx={{ flex: 1, width: '100%', alignItems: 'stretch' }}>
-        {/* Top-Left: Map & Camera View */}
-        <Grid item xs={12} lg={7} xl={8} sx={{ display: 'flex' }}>
-          <MapCameraView odomX={odomX} odomY={odomY} />
+        {/* Left Main Column (65% width): Map at top, Control Panel stretching full width at bottom */}
+        <Grid item xs={12} lg={7} xl={8} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box sx={{ flex: 1, display: 'flex', width: '100%' }}>
+            <MapCameraView odomX={odomX} odomY={odomY} />
+          </Box>
+          <Box sx={{ width: '100%' }}>
+            <ControlPanel />
+          </Box>
         </Grid>
 
-        {/* Top-Right: 3D Pose View (Placed to the right of Map View) */}
-        <Grid item xs={12} lg={5} xl={4} sx={{ display: 'flex' }}>
-          <Car3DView roll={roll} pitch={pitch} yaw={yaw} />
-        </Grid>
-
-        {/* Bottom Row (Below Map View): Battery Status & Control Panel in the SAME ROW */}
-        <Grid item xs={12} lg={7} xl={8}>
-          <Grid container spacing={3} sx={{ alignItems: 'stretch' }}>
-            {/* Left: Battery Status Widget */}
-            <Grid item xs={12} md={5} sx={{ display: 'flex' }}>
-              <BatteryWidget voltage={voltage} percentage={percentage} />
-            </Grid>
-
-            {/* Right: Omnidirectional Control Panel (Same Row) */}
-            <Grid item xs={12} md={7} sx={{ display: 'flex' }}>
-              <ControlPanel />
-            </Grid>
-          </Grid>
+        {/* Right Sidebar Column (35% width): 3D Attitude View at top, Battery Widget at bottom */}
+        <Grid item xs={12} lg={5} xl={4} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box sx={{ flex: 1, display: 'flex', width: '100%' }}>
+            <Car3DView roll={roll} pitch={pitch} yaw={yaw} />
+          </Box>
+          <Box sx={{ flex: 1, display: 'flex', width: '100%' }}>
+            <BatteryWidget voltage={voltage} percentage={percentage} />
+          </Box>
         </Grid>
       </Grid>
     </Box>

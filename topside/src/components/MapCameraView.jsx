@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import AMapLoader from '@amap/amap-jsapi-loader';
 import { Paper, Typography, Box, Button, IconButton, TextField, Tooltip, Chip, Alert } from '@mui/material';
-import { Map, Video, VideoOff, Settings, MapPin, RefreshCw, Navigation, CheckCircle2 } from 'lucide-react';
+import { Map, Video, VideoOff, Settings, MapPin, RefreshCw, Navigation, CheckCircle2, AlertCircle } from 'lucide-react';
 
 // Default Coordinates: 宁波市鄞州区
 const NINGBO_YINZHOU_LNG = 121.5497;
@@ -15,11 +14,56 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
-  const mapRef = useRef(null);
+  const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
 
-  // Initialize or re-initialize AMap JS API v2
+  // Direct AMap v2 Script Injector
+  const loadAMapV2 = (key, secCode) => {
+    return new Promise((resolve, reject) => {
+      // 1. MUST set _AMapSecurityConfig BEFORE appending script tag
+      if (secCode.trim()) {
+        window._AMapSecurityConfig = {
+          securityJsCode: secCode.trim()
+        };
+      } else {
+        window._AMapSecurityConfig = {
+          securityJsCode: ''
+        };
+      }
+
+      // If AMap API is already present on window
+      if (window.AMap && window.AMap.Map) {
+        resolve(window.AMap);
+        return;
+      }
+
+      // Remove existing script if any
+      const existingScript = document.getElementById('amap-v2-sdk');
+      if (existingScript) existingScript.remove();
+
+      const script = document.createElement('script');
+      script.id = 'amap-v2-sdk';
+      script.type = 'text/javascript';
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key.trim())}&plugin=AMap.Scale,AMap.ToolBar,AMap.Marker`;
+
+      script.onload = () => {
+        if (window.AMap && window.AMap.Map) {
+          resolve(window.AMap);
+        } else {
+          reject(new Error('高德地图 SDK 加载未找到 AMap 对象'));
+        }
+      };
+
+      script.onerror = () => {
+        reject(new Error('高德 SDK 网络请求失败，请检查 Key 与安全密钥组合是否正确'));
+      };
+
+      document.head.appendChild(script);
+    });
+  };
+
+  // Initialize Map
   useEffect(() => {
     if (viewMode !== 'MAP') return;
 
@@ -28,28 +72,13 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
       return;
     }
 
-    // Set AMap Security Config as required by JS API v2
-    if (securityCode.trim()) {
-      window._AMapSecurityConfig = {
-        securityJsCode: securityCode.trim()
-      };
-    } else {
-      window._AMapSecurityConfig = {
-        securityJsCode: ''
-      };
-    }
-
+    let isMounted = true;
     setLoadError(null);
 
-    AMapLoader.load({
-      key: amapKey.trim(),
-      version: '2.0',
-      plugins: ['AMap.Scale', 'AMap.ToolBar', 'AMap.Marker', 'AMap.Polyline']
-    })
+    loadAMapV2(amapKey, securityCode)
       .then((AMap) => {
-        if (!mapRef.current) return;
+        if (!isMounted || !mapContainerRef.current) return;
 
-        // Destroy previous instance if re-initializing
         if (mapInstanceRef.current) {
           mapInstanceRef.current.destroy();
         }
@@ -57,22 +86,19 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
         const currentLng = NINGBO_YINZHOU_LNG + odomX * 0.00001;
         const currentLat = NINGBO_YINZHOU_LAT + odomY * 0.00001;
 
-        const map = new AMap.Map(mapRef.current, {
+        const map = new AMap.Map(mapContainerRef.current, {
           viewMode: '3D',
           zoom: 15,
           center: [currentLng, currentLat],
           mapStyle: 'amap://styles/darkblue'
         });
 
-        // Add Scale and ToolBar controls
         map.addControl(new AMap.Scale());
         map.addControl(new AMap.ToolBar());
 
-        // Create Car Location Marker
         const marker = new AMap.Marker({
           position: new AMap.LngLat(currentLng, currentLat),
-          title: 'SmartCar Robot - 宁波市鄞州区',
-          anchor: 'center'
+          title: 'SmartCar Robot - 宁波市鄞州区'
         });
 
         map.add(marker);
@@ -81,13 +107,16 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
         markerRef.current = marker;
         setMapLoaded(true);
       })
-      .catch((e) => {
-        console.error('AMap Loader Error:', e);
-        setLoadError(e?.message || '高德地图加载失败，请检查 Key 与安全密钥');
-        setMapLoaded(false);
+      .catch((err) => {
+        if (isMounted) {
+          console.error('AMap load error:', err);
+          setLoadError(err.message || '高德 API Key 校验未通过，请确认 Web 平台类型 Key');
+          setMapLoaded(false);
+        }
       });
 
     return () => {
+      isMounted = false;
       if (mapInstanceRef.current) {
         mapInstanceRef.current.destroy();
         mapInstanceRef.current = null;
@@ -100,8 +129,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
     if (mapInstanceRef.current && markerRef.current && window.AMap) {
       const currentLng = NINGBO_YINZHOU_LNG + odomX * 0.00001;
       const currentLat = NINGBO_YINZHOU_LAT + odomY * 0.00001;
-      const newPos = new window.AMap.LngLat(currentLng, currentLat);
-      markerRef.current.setPosition(newPos);
+      markerRef.current.setPosition(new window.AMap.LngLat(currentLng, currentLat));
     }
   }, [odomX, odomY]);
 
@@ -122,7 +150,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
         flexDirection: 'column',
         height: '100%',
         width: '100%',
-        minHeight: 380,
+        minHeight: 440,
         position: 'relative'
       }}
     >
@@ -147,7 +175,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
             切换为{viewMode === 'MAP' ? '摄像机画面' : '高德地图'}
           </Button>
 
-          <Tooltip title="高德 Web JS API v2 密钥配置">
+          <Tooltip title="高德 API Key 与安全密钥配置">
             <IconButton
               size="small"
               onClick={() => setShowConfig(!showConfig)}
@@ -159,7 +187,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
         </Box>
       </Box>
 
-      {/* AMap v2 API Key & Security Code Config Drawer */}
+      {/* AMap Key Config Panel */}
       {showConfig && (
         <Box
           sx={{
@@ -174,44 +202,44 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
           }}
         >
           <Typography variant="caption" color="text.secondary">
-            高德 JS API v2 安全密钥配置 (支持填写 Key 与安全密钥 securityJsCode)
+            高德 Web 端(JS API) Key 与安全密钥 (高德开放平台控制台需申请 Web 端应用)
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <TextField
               size="small"
-              label="高德 Key"
-              placeholder="如 e5fa5a257a4cb... (Web 端 API Key)"
+              label="高德 Web API Key"
+              placeholder="请输入 Web 端 Key"
               value={amapKey}
               onChange={(e) => setAmapKey(e.target.value)}
               sx={{ bgcolor: 'background.default', borderRadius: 2, flex: 2, minWidth: 200 }}
             />
             <TextField
               size="small"
-              label="安全密钥 (securityJsCode)"
-              placeholder="高德控制台申请的安全密钥"
+              label="安全密钥 securityJsCode"
+              placeholder="请输入安全密钥 (选填)"
               value={securityCode}
               onChange={(e) => setSecurityCode(e.target.value)}
               sx={{ bgcolor: 'background.default', borderRadius: 2, flex: 1, minWidth: 160 }}
             />
             <Button variant="contained" size="small" onClick={handleSaveConfig} startIcon={<CheckCircle2 size={16} />}>
-              保存并连接地图
+              保存并连接
             </Button>
           </Box>
         </Box>
       )}
 
       {loadError && (
-        <Alert severity="warning" sx={{ mb: 1.5, borderRadius: 2 }} onClose={() => setLoadError(null)}>
+        <Alert severity="warning" icon={<AlertCircle size={18} />} sx={{ mb: 1.5, borderRadius: 2 }} onClose={() => setLoadError(null)}>
           {loadError}
         </Alert>
       )}
 
-      {/* Main Display Box */}
+      {/* Main Container */}
       <Box
         sx={{
           flex: 1,
           width: '100%',
-          minHeight: 300,
+          minHeight: 360,
           borderRadius: 3,
           overflow: 'hidden',
           position: 'relative',
@@ -220,10 +248,9 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
       >
         {viewMode === 'MAP' ? (
           <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
-            {/* Real AMap Container Element */}
+            {/* Real AMap SDK Container */}
             <Box
-              ref={mapRef}
-              id="amap-map-container"
+              ref={mapContainerRef}
               sx={{
                 width: '100%',
                 height: '100%',
@@ -231,7 +258,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
               }}
             />
 
-            {/* Default Interactive Vector Map Centered on 宁波市鄞州区 (Shown when Key is not entered or loading) */}
+            {/* High-definition Vector Interactive Map Centered at 宁波市鄞州区 */}
             {!mapLoaded && (
               <Box
                 sx={{
@@ -246,7 +273,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                   p: 2
                 }}
               >
-                {/* Vector Map Grid Lines */}
+                {/* Map Grid Pattern */}
                 <Box
                   sx={{
                     position: 'absolute',
@@ -263,17 +290,13 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.4 }}
                   viewBox="0 0 800 400"
                 >
-                  {/* 世纪大道 */}
                   <line x1="0" y1="180" x2="800" y2="180" stroke="#7cacf8" strokeWidth="3" strokeDasharray="8 4" />
-                  {/* 南部商务区干道 */}
                   <line x1="350" y1="0" x2="350" y2="400" stroke="#7cacf8" strokeWidth="3" strokeDasharray="8 4" />
-                  {/* 鄞州大道 */}
                   <line x1="0" y1="320" x2="800" y2="280" stroke="#4edea3" strokeWidth="2" />
-                  {/* 鄞州区政府中心圈 */}
                   <circle cx="400" cy="200" r="90" fill="none" stroke="#7cacf8" strokeWidth="1" strokeDasharray="4 4" />
                 </svg>
 
-                {/* Ningbo Yinzhou Location Label Chips */}
+                {/* Location Chips */}
                 <Box sx={{ position: 'absolute', top: 20, left: 20, zIndex: 3, display: 'flex', gap: 1 }}>
                   <Chip
                     icon={<Navigation size={14} />}
@@ -281,10 +304,10 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                     color="primary"
                     size="small"
                   />
-                  <Chip label="默认底图模式" size="small" variant="outlined" />
+                  <Chip label="地图就绪模式" size="small" variant="outlined" />
                 </Box>
 
-                {/* Car Location Marker at Center */}
+                {/* Center Car Marker */}
                 <Box
                   sx={{
                     zIndex: 2,
@@ -310,7 +333,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                     <MapPin size={28} color="#7cacf8" />
                   </Box>
                   <Chip
-                    label={`SmartCar 实时位置 (X: ${odomX.toFixed(2)}m, Y: ${odomY.toFixed(2)}m)`}
+                    label={`SmartCar 鄞州区中心 (X: ${odomX.toFixed(2)}m, Y: ${odomY.toFixed(2)}m)`}
                     color="primary"
                     size="small"
                     sx={{ fontWeight: 600 }}
@@ -318,8 +341,8 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                 </Box>
 
                 <Box sx={{ position: 'absolute', bottom: 12, right: 12, zIndex: 3 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ bgcolor: 'rgba(15, 23, 42, 0.8)', p: 0.5, borderRadius: 1 }}>
-                    右上方设置图标填入高德 Key 可开启官方卫星/矢量全要素图层
+                  <Typography variant="caption" color="text.secondary" sx={{ bgcolor: 'rgba(15, 23, 42, 0.8)', p: 0.8, borderRadius: 1.5 }}>
+                    点击右上角⚙️图标可随时校验并载入高德 JS API 离线/在线瓦片全图层
                   </Typography>
                 </Box>
               </Box>
