@@ -26,7 +26,7 @@ import {
 
 export default function Navbar({ activeTab, onTabChange, connectionStatus, rosUrl, onReconnect }) {
   const [anchorEl, setAnchorEl] = useState(null);
-  const [customIp, setCustomIp] = useState('192.168.10.11');
+  const [customIp, setCustomIp] = useState('192.168.10.12');
 
   const isConnected = connectionStatus.status === 'CONNECTED';
   const isConnecting = connectionStatus.status === 'CONNECTING';
@@ -137,7 +137,7 @@ export default function Navbar({ activeTab, onTabChange, connectionStatus, rosUr
                 label="树莓派 / ROS 主机 IP"
                 value={customIp}
                 onChange={(e) => setCustomIp(e.target.value)}
-                placeholder="192.168.10.11"
+                placeholder="192.168.10.12"
                 helperText="默认端口 9090 (rosbridge_websocket)"
               />
               <Button variant="contained" onClick={handleSaveIp} startIcon={<RefreshCw size={16} />}>
