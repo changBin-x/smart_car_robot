@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Paper, Typography, Box, Button, Slider, Chip, Grid } from '@mui/material';
 import {
   ArrowUp,
@@ -18,37 +18,57 @@ export default function ControlPanel() {
   const [linearSpeed, setLinearSpeed] = useState(0.3);
   const [angularSpeed, setAngularSpeed] = useState(0.5);
 
-  const sendTwist = (vx, vy, wz) => {
+  // Store the current commanded velocities
+  const currentCmd = useRef({ vx: 0, vy: 0, wz: 0 });
+  const publishInterval = useRef(null);
+
+  const startPublishing = (vx, vy, wz) => {
+    currentCmd.current = { vx, vy, wz };
+    // Publish immediately once
     rosService.publishCmdVel(vx, vy, wz);
+    // Ensure only one interval runs
+    if (!publishInterval.current) {
+      publishInterval.current = setInterval(() => {
+        const cmd = currentCmd.current;
+        rosService.publishCmdVel(cmd.vx, cmd.vy, cmd.wz);
+      }, 100); // 10Hz to prevent controller timeout (0.5s)
+    }
   };
 
   const handleStop = () => {
-    sendTwist(0, 0, 0);
+    currentCmd.current = { vx: 0, vy: 0, wz: 0 };
+    if (publishInterval.current) {
+      clearInterval(publishInterval.current);
+      publishInterval.current = null;
+    }
+    // Publish stop command immediately
+    rosService.publishCmdVel(0, 0, 0);
   };
 
   // Keyboard controls listener (WASD QE + Space)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['input', 'textarea'].includes(document.activeElement.tagName.toLowerCase())) return;
+      if (e.repeat) return; // Prevent OS key repeat from resetting the interval
 
       switch (e.key.toLowerCase()) {
         case 'w':
-          sendTwist(linearSpeed, 0, 0);
+          startPublishing(linearSpeed, 0, 0);
           break;
         case 's':
-          sendTwist(-linearSpeed, 0, 0);
+          startPublishing(-linearSpeed, 0, 0);
           break;
         case 'a':
-          sendTwist(0, linearSpeed, 0);
+          startPublishing(0, linearSpeed, 0);
           break;
         case 'd':
-          sendTwist(0, -linearSpeed, 0);
+          startPublishing(0, -linearSpeed, 0);
           break;
         case 'q':
-          sendTwist(0, 0, angularSpeed);
+          startPublishing(0, 0, angularSpeed);
           break;
         case 'e':
-          sendTwist(0, 0, -angularSpeed);
+          startPublishing(0, 0, -angularSpeed);
           break;
         case ' ':
           handleStop();
@@ -69,8 +89,16 @@ export default function ControlPanel() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      if (publishInterval.current) {
+        clearInterval(publishInterval.current);
+      }
     };
   }, [linearSpeed, angularSpeed]);
+
+  // Prevent default context menu on touch devices
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+  };
 
   return (
     <Paper
@@ -155,8 +183,12 @@ export default function ControlPanel() {
                 color="secondary"
                 size="small"
                 startIcon={<RotateCcw size={16} />}
-                onMouseDown={() => sendTwist(0, 0, angularSpeed)}
+                onMouseDown={() => startPublishing(0, 0, angularSpeed)}
                 onMouseUp={handleStop}
+                onMouseLeave={handleStop}
+                onTouchStart={(e) => { e.preventDefault(); startPublishing(0, 0, angularSpeed); }}
+                onTouchEnd={(e) => { e.preventDefault(); handleStop(); }}
+                onContextMenu={handleContextMenu}
                 sx={{ borderRadius: 3, minWidth: 90 }}
               >
                 左旋 (Q)
@@ -166,8 +198,12 @@ export default function ControlPanel() {
                 color="primary"
                 size="small"
                 startIcon={<ArrowUp size={16} />}
-                onMouseDown={() => sendTwist(linearSpeed, 0, 0)}
+                onMouseDown={() => startPublishing(linearSpeed, 0, 0)}
                 onMouseUp={handleStop}
+                onMouseLeave={handleStop}
+                onTouchStart={(e) => { e.preventDefault(); startPublishing(linearSpeed, 0, 0); }}
+                onTouchEnd={(e) => { e.preventDefault(); handleStop(); }}
+                onContextMenu={handleContextMenu}
                 sx={{ borderRadius: 3, minWidth: 100 }}
               >
                 前进 (W)
@@ -177,8 +213,12 @@ export default function ControlPanel() {
                 color="secondary"
                 size="small"
                 endIcon={<RotateCw size={16} />}
-                onMouseDown={() => sendTwist(0, 0, -angularSpeed)}
+                onMouseDown={() => startPublishing(0, 0, -angularSpeed)}
                 onMouseUp={handleStop}
+                onMouseLeave={handleStop}
+                onTouchStart={(e) => { e.preventDefault(); startPublishing(0, 0, -angularSpeed); }}
+                onTouchEnd={(e) => { e.preventDefault(); handleStop(); }}
+                onContextMenu={handleContextMenu}
                 sx={{ borderRadius: 3, minWidth: 90 }}
               >
                 右旋 (E)
@@ -192,8 +232,12 @@ export default function ControlPanel() {
                 color="info"
                 size="small"
                 startIcon={<ArrowLeft size={16} />}
-                onMouseDown={() => sendTwist(0, linearSpeed, 0)}
+                onMouseDown={() => startPublishing(0, linearSpeed, 0)}
                 onMouseUp={handleStop}
+                onMouseLeave={handleStop}
+                onTouchStart={(e) => { e.preventDefault(); startPublishing(0, linearSpeed, 0); }}
+                onTouchEnd={(e) => { e.preventDefault(); handleStop(); }}
+                onContextMenu={handleContextMenu}
                 sx={{ borderRadius: 3, minWidth: 90 }}
               >
                 左平移 (A)
@@ -204,6 +248,8 @@ export default function ControlPanel() {
                 size="small"
                 startIcon={<Octagon size={16} />}
                 onClick={handleStop}
+                onTouchStart={(e) => { e.preventDefault(); handleStop(); }}
+                onContextMenu={handleContextMenu}
                 sx={{ borderRadius: 3, minWidth: 100, fontWeight: 700, px: 2 }}
               >
                 急停 (Space)
@@ -213,8 +259,12 @@ export default function ControlPanel() {
                 color="info"
                 size="small"
                 endIcon={<ArrowRight size={16} />}
-                onMouseDown={() => sendTwist(0, -linearSpeed, 0)}
+                onMouseDown={() => startPublishing(0, -linearSpeed, 0)}
                 onMouseUp={handleStop}
+                onMouseLeave={handleStop}
+                onTouchStart={(e) => { e.preventDefault(); startPublishing(0, -linearSpeed, 0); }}
+                onTouchEnd={(e) => { e.preventDefault(); handleStop(); }}
+                onContextMenu={handleContextMenu}
                 sx={{ borderRadius: 3, minWidth: 90 }}
               >
                 右平移 (D)
@@ -228,8 +278,12 @@ export default function ControlPanel() {
                 color="primary"
                 size="small"
                 startIcon={<ArrowDown size={16} />}
-                onMouseDown={() => sendTwist(-linearSpeed, 0, 0)}
+                onMouseDown={() => startPublishing(-linearSpeed, 0, 0)}
                 onMouseUp={handleStop}
+                onMouseLeave={handleStop}
+                onTouchStart={(e) => { e.preventDefault(); startPublishing(-linearSpeed, 0, 0); }}
+                onTouchEnd={(e) => { e.preventDefault(); handleStop(); }}
+                onContextMenu={handleContextMenu}
                 sx={{ borderRadius: 3, minWidth: 100 }}
               >
                 后退 (S)

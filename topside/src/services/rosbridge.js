@@ -4,7 +4,7 @@ class RosService {
   constructor() {
     this.ros = null;
     this.isConnected = false;
-    this.url = 'ws://192.168.10.11:9090'; // Default Raspberry Pi IP
+    this.url = 'ws://192.168.10.12:9090'; // Default Raspberry Pi IP
     this.listeners = new Set();
     this.topics = {};
 
@@ -165,11 +165,13 @@ class RosService {
   publishCmdVel(lx = 0, ly = 0, az = 0) {
     if (!this.ros || !this.isConnected || !this.topics.cmdVel) return;
 
+    // Use sec=0, nanosec=0 to bypass controller timestamp validation.
+    // This prevents message rejection due to clock skew between PC and Robot.
     const twistMsg = new ROSLIB.Message({
       header: {
         stamp: {
-          sec: Math.floor(Date.now() / 1000),
-          nanosec: (Date.now() % 1000) * 1000000
+          sec: 0,
+          nanosec: 0
         },
         frame_id: 'base_link'
       },
