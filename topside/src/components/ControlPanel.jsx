@@ -19,7 +19,7 @@ export default function ControlPanel() {
   const [angularSpeed, setAngularSpeed] = useState(0.5);
 
   const sendTwist = (vx, vy, wz) => {
-    rosService.publishTwist(vx, vy, wz);
+    rosService.publishCmdVel(vx, vy, wz);
   };
 
   const handleStop = () => {

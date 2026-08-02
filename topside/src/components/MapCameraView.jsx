@@ -14,9 +14,9 @@ import {
   Target
 } from 'lucide-react';
 
-// Default Coordinates: 宁波市鄞州区
-const NINGBO_YINZHOU_LNG = 121.5497;
-const NINGBO_YINZHOU_LAT = 29.8082;
+// Default Coordinates: 宁波市鄞州区莘香雅苑50幢
+const NINGBO_YINZHOU_LNG = 121.627103;
+const NINGBO_YINZHOU_LAT = 29.867478;
 
 const DEFAULT_AMAP_KEY = 'e5d9a357843cb149b80dcc0f9e126b24';
 const DEFAULT_AMAP_SECURITY = '3a7ab9b46a757f8e366cb63027813ea8';
@@ -353,7 +353,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
                 <MapPin size={26} color="#7cacf8" />
               </Box>
               <Typography variant="body2" color="text.secondary">
-                宁波市鄞州区地图加载中…
+                莘香雅苑50幢地图加载中…
               </Typography>
               <Chip
                 label={`${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`}
@@ -449,7 +449,7 @@ export default function MapCameraView({ odomX = 0, odomY = 0 }) {
               </IconButton>
             </Tooltip>
 
-            <Tooltip title="回到鄞州区">
+            <Tooltip title="回到莘香雅苑50幢">
               <IconButton size="small" onClick={handleResetCenter} sx={{ color: 'success.light' }}>
                 <Target size={18} />
               </IconButton>
