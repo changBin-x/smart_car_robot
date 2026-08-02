@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+Author: ChangBin bin_chang@qq.com
+Date: 2026-08-03
+LastEditors: ChangBin bin_chang@qq.com
+LastEditTime: 2026-08-03
+Copyright (c) 2026 by ChangBin bin_chang@qq.com, All Rights Reserved.
+Description: FastDDS（eProsima Fast-RTPS）通信传输配置文件。
+             禁用共享内存（Shared Memory，SHM）传输，强制只使用 UDPv4。
+             适用场景：
+               - WSL2 环境（SHM 在 Linux/Windows 跨内核下不可靠）
+               - 树莓派实机（避免 /infra/ros2/ 路径不存在引发 XMLPARSER Error）
+             用法：在 shell 环境中 export FASTRTPS_DEFAULT_PROFILES_FILE=<此文件路径>
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+
+    <!--
+        自定义 UDPv4 传输描述符。
+        name 唯一标识此传输，供下方 participant 引用。
+    -->
+    <transport_descriptors>
+        <transport_descriptor>
+            <transport_id>udp_only</transport_id>
+            <type>UDPv4</type>
+        </transport_descriptor>
+    </transport_descriptors>
+
+    <!--
+        默认 participant 配置（is_default_profile="true"表示全局生效）。
+        userTransports：显式指定只使用 udp_only 传输。
+        useBuiltinTransports：设为 false，完全关闭内置的 SHM 传输。
+    -->
+    <participant profile_name="disable_shm" is_default_profile="true">
+        <rtps>
+            <userTransports>
+                <transport_id>udp_only</transport_id>
+            </userTransports>
+            <useBuiltinTransports>false</useBuiltinTransports>
+        </rtps>
+    </participant>
+
+</profiles>
