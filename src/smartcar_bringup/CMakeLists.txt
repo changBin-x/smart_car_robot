@@ -16,4 +16,9 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(
+  PROGRAMS scripts/camera_ustreamer_ctl.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()

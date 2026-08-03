@@ -1,10 +1,10 @@
 """
 Author: ChangBin bin_chang@qq.com
-Date: 2026-07-17
+Date: 2026-08-03
 LastEditors: ChangBin bin_chang@qq.com
-LastEditTime: 2026-07-23
+LastEditTime: 2026-08-03
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
-Description: 一键启动四轮麦克纳姆小车控制栈
+Description: 一键启动四轮麦克纳姆小车控制栈与实机摄像头推流控制器
 -----------------------------------------------------------
 启动内容：
   1) robot_state_publisher —— 用 xacro 展开的 URDF 发布 robot_description + 静态 TF
@@ -15,6 +15,7 @@ Description: 一键启动四轮麦克纳姆小车控制栈
   6) mpu6050_sensor        —— MPU6050 IMU 驱动（I2C 地址 0x68）
   7) rosbridge_websocket   —— rosbridge_server 的 WebSocket 桥接（端口 9090）
   8) joy_teleop            —— Xbox 手柄遥控栈（可选参数 use_joy:=true 启动）
+  9) camera_ustreamer_ctl  —— 单实例 ustreamer 摄像头推流与质量切换控制
 
 launch 参数：
   use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
@@ -24,6 +25,10 @@ launch 参数：
   i2c_address       (默认 0x68)：MPU6050 I2C 地址
   use_joy           (默认 false)：是否同时启动 Xbox 手柄遥控栈
   joy_dev           (默认 /dev/input/js0)：手柄设备节点路径
+  use_camera        (默认 true)：实机时是否启动摄像头推流控制器
+  camera_device     (默认 /dev/video0)：UVC 摄像头设备路径
+  camera_stream_port(默认 8080)：ustreamer MJPEG HTTP 推流端口
+  camera_ctl_port   (默认 8082)：摄像头质量切换 HTTP 控制端口
 
 用法：
   WSL2 仿真：ros2 launch smartcar_bringup smartcar.launch.py
@@ -48,6 +53,7 @@ from launch.substitutions import (
     FindExecutable,
     LaunchConfiguration,
     PathJoinSubstitution,
+    PythonExpression,
 )
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -55,6 +61,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    """生成四轮麦克纳姆小车控制栈与可选外设 launch 描述。"""
     # ---------------- 可配置 launch 参数 ----------------
     declared_arguments = [
         DeclareLaunchArgument(
@@ -97,6 +104,26 @@ def generate_launch_description():
             default_value="/dev/input/js0",
             description="手柄 Linux 设备节点路径 (use_joy:=true 时生效)",
         ),
+        DeclareLaunchArgument(
+            "use_camera",
+            default_value="true",
+            description="实机时是否启动摄像头推流控制器",
+        ),
+        DeclareLaunchArgument(
+            "camera_device",
+            default_value="/dev/video0",
+            description="UVC 摄像头设备路径 (use_camera:=true 且实机时生效)",
+        ),
+        DeclareLaunchArgument(
+            "camera_stream_port",
+            default_value="8080",
+            description="ustreamer MJPEG HTTP 推流端口",
+        ),
+        DeclareLaunchArgument(
+            "camera_ctl_port",
+            default_value="8082",
+            description="摄像头质量切换 HTTP 控制端口",
+        ),
     ]
 
     use_mock_hardware = LaunchConfiguration("use_mock_hardware")
@@ -107,6 +134,10 @@ def generate_launch_description():
     i2c_address = LaunchConfiguration("i2c_address")
     use_joy = LaunchConfiguration("use_joy")
     joy_dev = LaunchConfiguration("joy_dev")
+    use_camera = LaunchConfiguration("use_camera")
+    camera_device = LaunchConfiguration("camera_device")
+    camera_stream_port = LaunchConfiguration("camera_stream_port")
+    camera_ctl_port = LaunchConfiguration("camera_ctl_port")
 
     pkg_share = FindPackageShare("smartcar_bringup")
     mpu6050_params = PathJoinSubstitution(
@@ -267,6 +298,29 @@ def generate_launch_description():
         launch_arguments={"joy_dev": joy_dev}.items(),
     )
 
+    # 摄像头只在实机路径启动；WSL2 mock 模式没有 /dev/video0 访问契约。
+    camera_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([pkg_share, "launch", "camera.launch.py"])
+        ),
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "'",
+                    use_camera,
+                    "' == 'true' and '",
+                    use_mock_hardware,
+                    "' == 'false'",
+                ]
+            )
+        ),
+        launch_arguments={
+            "camera_device": camera_device,
+            "camera_stream_port": camera_stream_port,
+            "camera_ctl_port": camera_ctl_port,
+        }.items(),
+    )
+
     return LaunchDescription(
         declared_arguments
         + [
@@ -279,5 +333,6 @@ def generate_launch_description():
             rviz_node,
             rosbridge_launch,
             joy_teleop_launch,
+            camera_launch,
         ]
     )
