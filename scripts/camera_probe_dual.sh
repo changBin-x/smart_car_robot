@@ -30,9 +30,13 @@ log_error() {
 cleanup() {
   if [[ -n "${PID1}" ]]; then
     kill "${PID1}" 2>/dev/null || true
+    wait "${PID1}" 2>/dev/null || true
+    PID1=""
   fi
   if [[ -n "${PID2}" ]]; then
     kill "${PID2}" 2>/dev/null || true
+    wait "${PID2}" 2>/dev/null || true
+    PID2=""
   fi
 }
 
@@ -92,19 +96,22 @@ main() {
   pkill -f "ustreamer --device" 2>/dev/null || true
   sleep 0.5
 
+  local result=0
   if probe_with_format "JPEG" "HW"; then
     return 0
+  else
+    result="$?"
   fi
 
-  local result="$?"
   if [[ "${result}" -eq 1 ]]; then
     log_info "${FIRST_FAIL_RESULT}; retrying with YUYV+CPU."
     cleanup
     sleep 0.5
     if probe_with_format "YUYV" "CPU"; then
       return 0
+    else
+      result="$?"
     fi
-    result="$?"
     if [[ "${result}" -eq 1 ]]; then
       echo "PROBE_RESULT=${FIRST_FAIL_RESULT}"
     fi
