@@ -6,12 +6,15 @@ import DashboardView from './components/DashboardView';
 import DebugConsoleView from './components/DebugConsoleView';
 import DataQueryView from './components/DataQueryView';
 import { rosService } from './services/rosbridge';
+import { hostFromRosUrl } from './utils/cameraStream';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('DASHBOARD');
   const [connectionStatus, setConnectionStatus] = useState({ status: 'DISCONNECTED', url: rosService.url });
   const [telemetry, setTelemetry] = useState(rosService.telemetry);
   const [messages, setMessages] = useState([]);
+
+  const cameraHost = hostFromRosUrl(connectionStatus.url || rosService.url);
 
   useEffect(() => {
     rosService.connect();
@@ -78,7 +81,9 @@ export default function App() {
             width: '100%'
           }}
         >
-          {activeTab === 'DASHBOARD' && <DashboardView telemetry={telemetry} />}
+          {activeTab === 'DASHBOARD' && (
+            <DashboardView telemetry={telemetry} cameraHost={cameraHost} />
+          )}
           {activeTab === 'DEBUG' && <DebugConsoleView messages={messages} />}
           {activeTab === 'QUERY' && <DataQueryView />}
         </Container>

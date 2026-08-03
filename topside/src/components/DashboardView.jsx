@@ -6,7 +6,7 @@ import Car3DView from './Car3DView';
 import MapCameraView from './MapCameraView';
 import ControlPanel from './ControlPanel';
 
-export default function DashboardView({ telemetry }) {
+export default function DashboardView({ telemetry, cameraHost }) {
   const {
     voltage = 0,
     percentage = 0,
@@ -94,7 +94,7 @@ export default function DashboardView({ telemetry }) {
         {/* Left Main Column (65% width): Map at top, Control Panel stretching full width at bottom */}
         <Grid item xs={12} lg={7} xl={8} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <Box sx={{ flex: 1, display: 'flex', width: '100%' }}>
-            <MapCameraView odomX={odomX} odomY={odomY} />
+            <MapCameraView odomX={odomX} odomY={odomY} cameraHost={cameraHost} />
           </Box>
           <Box sx={{ width: '100%' }}>
             <ControlPanel />
