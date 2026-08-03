@@ -17,3 +17,5 @@
 docs/superpowers/
 topside/node_modules/
 .worktrees/
+topside/server/*_db.json
+
