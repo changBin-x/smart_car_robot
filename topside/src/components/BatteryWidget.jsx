@@ -23,7 +23,7 @@ export default function BatteryWidget({ voltage = 0, percentage = 0 }) {
         gap: 2,
         width: '100%',
         height: '100%',
-        minHeight: 280
+        minHeight: 200,
       }}
     >
       {/* Header bar */}

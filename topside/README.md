@@ -75,7 +75,8 @@ topside/
 │   │   ├── DashboardView.jsx   # 状态与控制主页视图
 │   │   ├── DataQueryView.jsx   # 历史数据查询页面
 │   │   ├── DebugConsoleView.jsx# 指令调试 Console
-│   │   ├── MapCameraView.jsx   # 高德地图与摄像机切换组件
+│   │   ├── MapCameraView.jsx   # 高德地图定位追踪组件
+│   │   ├── CameraView.jsx      # 树莓派 MJPEG 摄像机面板
 │   │   └── Navbar.jsx          # MD3 应用导航与 IP 配置栏
 │   ├── services/
 │   │   └── rosbridge.js    # ROS 2 WebSocket 通信服务
@@ -148,12 +149,14 @@ npm run dev
 | 画面拉流 | `http://<pi-ip>:8080/stream` | 低延迟与高清共用同一推流端口；切档后 URL 不变（可带 `?t=` 缓存破坏） |
 | 档位切换 | `http://<pi-ip>:8082/quality?mode=low\|high` | `low` = 640×480@30；`high` = 1280×720@15；格式 YUYV + CPU |
 
-`MapCameraView` 行为摘要：
+仪表盘布局：地图与摄像机**并排同时显示**（非互斥切换）；电池状态与麦轮遥控面板在同一列。
+
+`CameraView` 拉流行为摘要：
 
 1. 默认低延迟档，`<img src>` 指向 `:8080/stream`。
 2. 点击「高清 / 低延迟」时先请求 `:8082/quality?mode=...`，成功后再刷新 `<img>`。
 3. 断流时 `onError` 触发指数退避重连（约 1 s → 2 s → 4 s，上限 8 s）。
-4. 请以 `http://localhost:3223` 打开上位机（HTTP 页拉 HTTP 流）；若将来改为 HTTPS，需注意混合内容限制。
+4. 请以 `http://localhost:3030` 打开上位机（HTTP 页拉 HTTP 流）；若将来改为 HTTPS，需注意混合内容限制。
 
 前置：树莓派已 `sudo apt install -y ustreamer`，且 bringup 以 `use_mock_hardware:=false`、`use_camera:=true`（默认）启动。
 

@@ -1,33 +1,31 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+/**
+ * @Author: ChangBin bin_chang@qq.com
+ * @Date: 2026-08-04 00:49:20
+ * @LastEditors: ChangBin bin_chang@qq.com
+ * @LastEditTime: 2026-08-04
+ * @Copyright (c) 2026 by ChangBin, All Rights Reserved.
+ * @Description: 高德地图定位追踪面板，根据里程计偏移显示机器人位置。
+ */
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Paper,
   Typography,
   Box,
   Button,
-  ButtonGroup,
   IconButton,
   Tooltip,
   Chip,
 } from '@mui/material';
 import {
   Map,
-  Video,
-  VideoOff,
   Settings,
   MapPin,
-  RefreshCw,
   Navigation,
   CheckCircle2,
   ZoomIn,
   ZoomOut,
   Target,
 } from 'lucide-react';
-import {
-  CAMERA_STREAM_MODE,
-  buildStreamUrl,
-  buildQualityCtlUrl,
-  nextReconnectDelayMs,
-} from '../utils/cameraStream';
 
 // Default Coordinates: 宁波市鄞州区莘香雅苑50幢
 const NINGBO_YINZHOU_LNG = 121.627103;
@@ -35,23 +33,19 @@ const NINGBO_YINZHOU_LAT = 29.867478;
 
 const DEFAULT_AMAP_KEY = 'e5d9a357843cb149b80dcc0f9e126b24';
 const DEFAULT_AMAP_SECURITY = '3a7ab9b46a757f8e366cb63027813ea8';
-const DEFAULT_CAMERA_HOST = '192.168.10.17';
 
 /**
- * 高德地图定位与树莓派 MJPEG 摄像机切换视图。
+ * 高德地图定位追踪视图（与摄像机面板并排同屏显示）。
  *
  * @param {object} props 组件属性。
  * @param {number} [props.odomX=0] 里程计 X（米），用于地图偏移。
  * @param {number} [props.odomY=0] 里程计 Y（米），用于地图偏移。
- * @param {string} [props.cameraHost='192.168.10.17'] 摄像机推流主机名或 IP。
- * @returns {JSX.Element} 地图/摄像机切换面板。
+ * @returns {JSX.Element} 地图定位面板。
  */
 export default function MapCameraView({
   odomX = 0,
   odomY = 0,
-  cameraHost = DEFAULT_CAMERA_HOST,
 }) {
-  const [viewMode, setViewMode] = useState('MAP');
   const [amapKey] = useState(DEFAULT_AMAP_KEY);
   const [securityCode] = useState(DEFAULT_AMAP_SECURITY);
   const [showConfig, setShowConfig] = useState(false);
@@ -59,87 +53,16 @@ export default function MapCameraView({
   const [mapError, setMapError] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(15);
 
-  /** @type {'low'|'high'} 画质档位，默认低延迟。 */
-  const [quality, setQuality] = useState('low');
-  /** 当前 MJPEG 帧是否成功加载。 */
-  const [streamOk, setStreamOk] = useState(false);
-  /** 断流后的重连尝试次数（用于指数退避）。 */
-  const [reconnectAttempt, setReconnectAttempt] = useState(0);
-  /** single 模式下刷新 img src 的缓存破坏参数。 */
-  const [cacheBust, setCacheBust] = useState(() => Date.now());
-
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const initAttemptedRef = useRef(false);
-  const reconnectTimerRef = useRef(null);
-
-  const streamUrl = buildStreamUrl(cameraHost, quality, {
-    mode: CAMERA_STREAM_MODE,
-    cacheBust,
-  });
-
-  /** 清除待执行的重连定时器。 */
-  const clearReconnectTimer = useCallback(() => {
-    if (reconnectTimerRef.current != null) {
-      clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => () => clearReconnectTimer(), [clearReconnectTimer]);
 
   /**
-   * MJPEG 帧加载成功：标记正常并重置退避计数。
-   */
-  const handleStreamLoad = useCallback(() => {
-    setStreamOk(true);
-    setReconnectAttempt(0);
-    clearReconnectTimer();
-  }, [clearReconnectTimer]);
-
-  /**
-   * MJPEG 断流：显示提示，并按指数退避刷新 cacheBust 重连。
-   */
-  const handleStreamError = useCallback(() => {
-    setStreamOk(false);
-    clearReconnectTimer();
-    const delayMs = nextReconnectDelayMs(reconnectAttempt);
-    reconnectTimerRef.current = setTimeout(() => {
-      setReconnectAttempt((prev) => prev + 1);
-      setCacheBust(Date.now());
-    }, delayMs);
-  }, [clearReconnectTimer, reconnectAttempt]);
-
-  /**
-   * 切换低延迟 / 高清档位。
-   * single 模式先请求质量控制接口，再刷新 cacheBust 以重新拉流。
+   * 将里程计偏移换算为安全的经纬度。
    *
-   * @param {'low'|'high'} nextQuality 目标画质。
+   * @returns {[number, number]} [经度, 纬度]。
    */
-  const handleQualityChange = useCallback(
-    async (nextQuality) => {
-      if (nextQuality === quality) {
-        return;
-      }
-      clearReconnectTimer();
-      setQuality(nextQuality);
-      setStreamOk(false);
-      setReconnectAttempt(0);
-
-      if (CAMERA_STREAM_MODE === 'single') {
-        try {
-          await fetch(buildQualityCtlUrl(cameraHost, nextQuality));
-        } catch (err) {
-          console.warn('camera quality ctl failed:', err);
-        }
-        setCacheBust(Date.now());
-      }
-    },
-    [cameraHost, clearReconnectTimer, quality],
-  );
-
-  // Safely calculate Lng / Lat numbers
   const getSafeCoordinates = () => {
     const safeX = typeof odomX === 'number' && !isNaN(odomX) ? odomX : 0;
     const safeY = typeof odomY === 'number' && !isNaN(odomY) ? odomY : 0;
@@ -148,10 +71,12 @@ export default function MapCameraView({
     return [lng, lat];
   };
 
-  // Initialize AMap — container must already be in DOM & visible
+  /**
+   * 初始化高德地图实例；容器须已在 DOM 中且可见。
+   */
   const initMap = () => {
     if (!mapContainerRef.current) return;
-    if (mapInstanceRef.current) return; // already initialized
+    if (mapInstanceRef.current) return;
 
     const AMap = window.AMap;
     if (!AMap || !AMap.Map) {
@@ -177,7 +102,6 @@ export default function MapCameraView({
         resizeEnable: true,
       });
 
-      // Add controls when available
       AMap.plugin(['AMap.Scale', 'AMap.ToolBar'], () => {
         map.addControl(new AMap.Scale());
         map.addControl(new AMap.ToolBar({ position: 'LB' }));
@@ -192,7 +116,6 @@ export default function MapCameraView({
         setMapError(null);
       });
 
-      // Marker
       const marker = new AMap.Marker({
         position: new AMap.LngLat(lng, lat),
         title: 'SmartCar Robot',
@@ -208,9 +131,8 @@ export default function MapCameraView({
     }
   };
 
-  // Wait for AMap SDK to be ready after component mounts
+  // 挂载后等待 AMap SDK 就绪并初始化
   useEffect(() => {
-    if (viewMode !== 'MAP') return;
     if (initAttemptedRef.current) return;
     initAttemptedRef.current = true;
 
@@ -218,7 +140,6 @@ export default function MapCameraView({
       if (window.AMap && window.AMap.Map) {
         initMap();
       } else {
-        // SDK not yet loaded — poll until ready (max ~5s)
         let attempts = 0;
         const poll = setInterval(() => {
           attempts++;
@@ -233,23 +154,23 @@ export default function MapCameraView({
       }
     };
 
-    // Slight delay so React has finished mounting the DOM element
     const timer = setTimeout(tryInit, 200);
-    return () => clearTimeout(timer);
-  }, [viewMode]);
+    return () => {
+      clearTimeout(timer);
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.destroy();
+        } catch (_) {
+          /* ignore destroy errors on unmount */
+        }
+        mapInstanceRef.current = null;
+        markerRef.current = null;
+        initAttemptedRef.current = false;
+      }
+    };
+  }, []);
 
-  // Destroy map when switching away from map view
-  useEffect(() => {
-    if (viewMode !== 'MAP' && mapInstanceRef.current) {
-      try { mapInstanceRef.current.destroy(); } catch (_) {}
-      mapInstanceRef.current = null;
-      markerRef.current = null;
-      initAttemptedRef.current = false;
-      setMapLoaded(false);
-    }
-  }, [viewMode]);
-
-  // Update marker position when odometry changes
+  // 里程计变化时更新标记位置
   useEffect(() => {
     if (mapInstanceRef.current && markerRef.current && window.AMap) {
       const [lng, lat] = getSafeCoordinates();
@@ -286,19 +207,28 @@ export default function MapCameraView({
         flexDirection: 'column',
         height: '100%',
         width: '100%',
-        minHeight: 440,
+        minHeight: { xs: 320, md: 380 },
         position: 'relative',
         boxSizing: 'border-box',
       }}
     >
-      {/* Header bar */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexShrink: 0 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 1.5,
+          flexShrink: 0,
+          flexWrap: 'wrap',
+          gap: 1,
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {viewMode === 'MAP' ? <Map size={20} color="#7cacf8" /> : <Video size={20} color="#7cacf8" />}
+          <Map size={20} color="#7cacf8" />
           <Typography variant="h6" color="text.primary">
-            {viewMode === 'MAP' ? '高德地图定位追踪' : '树莓派摄像机画面'}
+            高德地图定位追踪
           </Typography>
-          {mapLoaded && viewMode === 'MAP' && (
+          {mapLoaded && (
             <Chip
               icon={<Navigation size={12} />}
               label={`${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`}
@@ -309,50 +239,17 @@ export default function MapCameraView({
           )}
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {viewMode === 'CAMERA' && (
-            <ButtonGroup size="small" variant="outlined" sx={{ borderRadius: 5 }}>
-              <Button
-                variant={quality === 'low' ? 'contained' : 'outlined'}
-                onClick={() => handleQualityChange('low')}
-                sx={{ borderRadius: '20px 0 0 20px' }}
-              >
-                低延迟
-              </Button>
-              <Button
-                variant={quality === 'high' ? 'contained' : 'outlined'}
-                onClick={() => handleQualityChange('high')}
-                sx={{ borderRadius: '0 20px 20px 0' }}
-              >
-                高清
-              </Button>
-            </ButtonGroup>
-          )}
-
-          <Button
-            variant="contained"
+        <Tooltip title="高德 API Key 配置">
+          <IconButton
             size="small"
-            color={viewMode === 'MAP' ? 'primary' : 'secondary'}
-            startIcon={viewMode === 'MAP' ? <Video size={16} /> : <Map size={16} />}
-            onClick={() => setViewMode(viewMode === 'MAP' ? 'CAMERA' : 'MAP')}
-            sx={{ borderRadius: 5 }}
+            onClick={() => setShowConfig(!showConfig)}
+            sx={{ color: showConfig ? 'primary.main' : 'text.secondary' }}
           >
-            {viewMode === 'MAP' ? '切换摄像机' : '切换地图'}
-          </Button>
-
-          <Tooltip title="高德 API Key 配置">
-            <IconButton
-              size="small"
-              onClick={() => setShowConfig(!showConfig)}
-              sx={{ color: showConfig ? 'primary.main' : 'text.secondary' }}
-            >
-              <Settings size={18} />
-            </IconButton>
-          </Tooltip>
-        </Box>
+            <Settings size={18} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
-      {/* Config Panel */}
       {showConfig && (
         <Box
           sx={{
@@ -371,13 +268,25 @@ export default function MapCameraView({
             当前高德 API Key（已预置，如需修改请刷新页面生效）
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Chip label={`Key: ${amapKey.substring(0, 8)}...`} size="small" color="primary" variant="outlined" />
-            <Chip label={`Security: ${securityCode.substring(0, 8)}...`} size="small" color="success" variant="outlined" />
+            <Chip
+              label={`Key: ${amapKey.substring(0, 8)}...`}
+              size="small"
+              color="primary"
+              variant="outlined"
+            />
+            <Chip
+              label={`Security: ${securityCode.substring(0, 8)}...`}
+              size="small"
+              color="success"
+              variant="outlined"
+            />
             <Button
               variant="outlined"
               size="small"
               startIcon={<CheckCircle2 size={14} />}
-              onClick={() => { setShowConfig(false); }}
+              onClick={() => {
+                setShowConfig(false);
+              }}
             >
               确认
             </Button>
@@ -385,8 +294,7 @@ export default function MapCameraView({
         </Box>
       )}
 
-      {/* Error Banner */}
-      {mapError && viewMode === 'MAP' && (
+      {mapError && (
         <Box
           sx={{
             p: 1.5,
@@ -403,7 +311,6 @@ export default function MapCameraView({
         </Box>
       )}
 
-      {/* Main Map / Camera Container */}
       <Box
         sx={{
           flex: 1,
@@ -412,10 +319,10 @@ export default function MapCameraView({
           overflow: 'hidden',
           position: 'relative',
           bgcolor: '#0a0f1c',
-          minHeight: 300,
+          minHeight: 260,
         }}
       >
-        {/* ── AMap Container ── always in DOM when viewMode === MAP, always block */}
+        {/* CRITICAL: never use display:none — AMap needs a visible container */}
         <Box
           ref={mapContainerRef}
           id="amap-container-element"
@@ -424,13 +331,11 @@ export default function MapCameraView({
             inset: 0,
             width: '100%',
             height: '100%',
-            // CRITICAL: never use display:none — AMap needs a visible container
-            display: viewMode === 'MAP' ? 'block' : 'none',
+            display: 'block',
           }}
         />
 
-        {/* Loading overlay — shown while map is mounting */}
-        {viewMode === 'MAP' && !mapLoaded && !mapError && (
+        {!mapLoaded && !mapError && (
           <Box
             sx={{
               position: 'absolute',
@@ -444,7 +349,6 @@ export default function MapCameraView({
               pointerEvents: 'none',
             }}
           >
-            {/* Grid Pattern */}
             <Box
               sx={{
                 position: 'absolute',
@@ -454,7 +358,15 @@ export default function MapCameraView({
                 backgroundSize: '40px 40px',
               }}
             />
-            <Box sx={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                zIndex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2,
+              }}
+            >
               <Box
                 sx={{
                   width: 52,
@@ -488,125 +400,56 @@ export default function MapCameraView({
           </Box>
         )}
 
-        {/* Camera MJPEG stream */}
-        {viewMode === 'CAMERA' && (
-          <Box
+        <Box
+          sx={{
+            position: 'absolute',
+            right: 12,
+            bottom: 12,
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0.5,
+            bgcolor: 'rgba(15,23,42,0.85)',
+            p: 0.5,
+            borderRadius: 3,
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
+        >
+          <Tooltip title="放大">
+            <IconButton size="small" onClick={handleZoomIn} sx={{ color: 'text.primary' }}>
+              <ZoomIn size={18} />
+            </IconButton>
+          </Tooltip>
+
+          <Chip
+            label={`${zoomLevel}x`}
+            size="small"
             sx={{
-              position: 'absolute',
-              inset: 0,
-              bgcolor: '#090d14',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              height: 20,
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              bgcolor: 'surface.container',
+              color: 'primary.light',
             }}
-          >
-            <Box
-              component="img"
-              src={streamUrl}
-              alt="camera"
-              onLoad={handleStreamLoad}
-              onError={handleStreamError}
-              sx={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                display: 'block',
-                bgcolor: '#000',
-              }}
-            />
+          />
 
-            {!streamOk && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  bgcolor: 'rgba(9, 13, 20, 0.85)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 2,
-                  p: 3,
-                  textAlign: 'center',
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: '50%',
-                    bgcolor: 'rgba(255,137,125,0.1)',
-                    border: '1px dashed #ff897d',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <VideoOff size={32} color="#ff897d" />
-                </Box>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
-                    摄像机流中断
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    正在重连 {cameraHost}（{quality === 'low' ? '低延迟' : '高清'}）…
-                  </Typography>
-                </Box>
-                <Chip
-                  icon={<RefreshCw size={14} />}
-                  label={`重连尝试 #${reconnectAttempt + 1}`}
-                  size="small"
-                  color="warning"
-                  variant="outlined"
-                />
-              </Box>
-            )}
-          </Box>
-        )}
+          <Tooltip title="缩小">
+            <IconButton size="small" onClick={handleZoomOut} sx={{ color: 'text.primary' }}>
+              <ZoomOut size={18} />
+            </IconButton>
+          </Tooltip>
 
-        {/* Floating Zoom & Location Controls */}
-        {viewMode === 'MAP' && (
-          <Box
-            sx={{
-              position: 'absolute',
-              right: 12,
-              bottom: 12,
-              zIndex: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 0.5,
-              bgcolor: 'rgba(15,23,42,0.85)',
-              p: 0.5,
-              borderRadius: 3,
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255,255,255,0.1)',
-            }}
-          >
-            <Tooltip title="放大">
-              <IconButton size="small" onClick={handleZoomIn} sx={{ color: 'text.primary' }}>
-                <ZoomIn size={18} />
-              </IconButton>
-            </Tooltip>
-
-            <Chip
-              label={`${zoomLevel}x`}
+          <Tooltip title="回到莘香雅苑50幢">
+            <IconButton
               size="small"
-              sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: 'surface.container', color: 'primary.light' }}
-            />
-
-            <Tooltip title="缩小">
-              <IconButton size="small" onClick={handleZoomOut} sx={{ color: 'text.primary' }}>
-                <ZoomOut size={18} />
-              </IconButton>
-            </Tooltip>
-
-            <Tooltip title="回到莘香雅苑50幢">
-              <IconButton size="small" onClick={handleResetCenter} sx={{ color: 'success.light' }}>
-                <Target size={18} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        )}
+              onClick={handleResetCenter}
+              sx={{ color: 'success.light' }}
+            >
+              <Target size={18} />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
     </Paper>
   );
