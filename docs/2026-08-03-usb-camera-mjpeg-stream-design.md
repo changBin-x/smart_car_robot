@@ -4,6 +4,7 @@
 | --- | --- |
 | 日期 | 2026-08-03 |
 | 状态 | 待用户审查 |
+| 路径说明 | 仓库已 ignore `docs/superpowers/`，本规格放在 `docs/` 下以便入库 |
 | 方案 | ustreamer MJPEG-HTTP（方案一） |
 | 目标 | 树莓派 USB 摄像机画面实时显示在 topside React 界面，延迟尽可能低，支持低延迟 / 高清切换 |
 
