@@ -3,7 +3,7 @@
 Author: ChangBin bin_chang@qq.com
 Date: 2026-08-03
 LastEditors: ChangBin bin_chang@qq.com
-LastEditTime: 2026-08-03
+LastEditTime: 2026-08-04
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
 Description: 管理单实例 ustreamer 进程，并提供 HTTP 质量切换控制口。
 """
@@ -131,7 +131,6 @@ class CameraUstreamerController:
         self._mode = "low"
         self._process: subprocess.Popen[bytes] | None = None
         self._lock = threading.Lock()
-        self._supports_exit_on_parent_death: bool | None = None
 
     @property
     def mode(self) -> str:
@@ -275,9 +274,15 @@ class CameraUstreamerController:
         return payload.get("online") is True
 
     def _build_command(self, mode: str) -> list[str]:
-        """构造 ustreamer 命令行参数。"""
+        """构造 ustreamer 命令行参数。
+
+        注意：不要附加 --exit-on-parent-death。该选项基于
+        PR_SET_PDEATHSIG，信号会绑定到调用 fork 的线程；质量切换在
+        ThreadingHTTPServer 工作线程中 Popen 时，请求结束后该线程退出会
+        误杀刚拉起的 ustreamer。生命周期改由本控制器显式 stop/terminate。
+        """
         profile = QUALITY_PROFILES[mode]
-        command = [
+        return [
             USTREAMER_BIN,
             "--device",
             self._device,
@@ -294,34 +299,6 @@ class CameraUstreamerController:
             "--allow-origin=*",
             "--slowdown",
         ]
-
-        if self._supports_flag("--exit-on-parent-death"):
-            command.append("--exit-on-parent-death")
-
-        return command
-
-    def _supports_flag(self, flag: str) -> bool:
-        """检查当前 ustreamer 是否声明支持指定命令行参数。"""
-        if flag != "--exit-on-parent-death":
-            return False
-
-        if self._supports_exit_on_parent_death is not None:
-            return self._supports_exit_on_parent_death
-
-        try:
-            result = subprocess.run(
-                [USTREAMER_BIN, "--help"],
-                check=False,
-                capture_output=True,
-                timeout=2.0,
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            self._supports_exit_on_parent_death = False
-            return False
-
-        help_text = result.stdout + result.stderr
-        self._supports_exit_on_parent_death = flag.encode() in help_text
-        return self._supports_exit_on_parent_death
 
 
 class CameraControlHandler(http.server.BaseHTTPRequestHandler):
