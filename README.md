@@ -19,6 +19,7 @@
 | 电池       | 2S 锂电（7.4 V，5–12 V 均可）                              | 1    | 驱动板供电             |
 | 数据线     | USB A → Type-C                                             | 1    | 树莓派 ↔ 驱动板串口    |
 | IMU        | MPU6050（I2C，地址 0x68）                                  | 1    | 6 轴姿态传感器         |
+| USB 摄像机 | 1080P UVC（`/dev/video0`）                                 | 1    | MJPEG-HTTP 旁路推流    |
 | 手柄       | Xbox 无线/有线手柄（Linux 设备 `/dev/input/js0`）          | 1    | 遥控手柄（可选）       |
 
 ### 接线说明
@@ -198,12 +199,20 @@ sudo apt install -y libi2c-dev i2c-tools
 # raspi-config / 设备树确认 I2C 已启用后：
 i2cdetect -y 1   # 应在 68 处看到 MPU6050
 
-# 5. 确认驱动板设备名（插上 Type-C 后）
+# 5. USB 摄像机推流（ustreamer）
+sudo apt install -y ustreamer
+# 确认设备节点（插上 USB 摄像机后）
+ls /dev/video*
+# 用户需在 video 组：groups | grep video
+
+# 6. 确认驱动板设备名（插上 Type-C 后）
 ls /dev/ttyUSB* /dev/ttyACM*
 # 如果不是 /dev/ttyUSB0，启动时用 serial_port launch 参数覆盖
 ```
 
 > 建议：为驱动板做 udev 固定别名（防止多 USB 设备时序号漂移），后续路线图中提供规则示例。
+
+> **摄像机方案**：UVC 不能真双开，采用 **单实例 `ustreamer` + `camera_ustreamer_ctl`**。采集格式为 YUYV + CPU 编码；低延迟档 `640x480@30`，高清档 `1280x720@15`。MJPEG 推流端口 `8080`，质量切换控制口 `8082`。
 
 ## 5. 编译与启动
 
@@ -231,7 +240,8 @@ source install/setup.bash
 # WSL2：mock 硬件启动（默认 use_mock_hardware:=true，含 WebSocket 端口 9090）
 ros2 launch smartcar_bringup smartcar.launch.py
 
-# 树莓派：实机启动（含电机栈 + MPU6050 → /imu/data_raw + WebSocket 端口 9090）
+# 树莓派：实机启动（含电机栈 + MPU6050 → /imu/data_raw + WebSocket 端口 9090
+# + 默认启用摄像机推流 use_camera:=true）
 ros2 launch smartcar_bringup smartcar.launch.py \
   use_mock_hardware:=false serial_port:=/dev/ttyUSB0
 
@@ -239,11 +249,18 @@ ros2 launch smartcar_bringup smartcar.launch.py \
 ros2 launch smartcar_bringup smartcar.launch.py \
   use_mock_hardware:=false serial_port:=/dev/ttyUSB0 use_joy:=true
 
+# 树莓派：实机但不启摄像机推流
+ros2 launch smartcar_bringup smartcar.launch.py \
+  use_mock_hardware:=false serial_port:=/dev/ttyUSB0 use_camera:=false
+
 # 独立启动 Xbox 手柄遥控
 ros2 launch smartcar_bringup joy_teleop.launch.py joy_dev:=/dev/input/js0
 
 # 仅启动 IMU（可选）
 ros2 launch smartcar_bringup mpu6050.launch.py
+
+# 仅启动摄像机推流（可选，独立 launch）
+ros2 launch smartcar_bringup camera.launch.py
 
 # 键盘遥控（Jazzy 的 mecanum_drive_controller 订阅 TwistStamped，
 # teleop 需加 stamped:=true 并 remap 到控制器 reference 话题）
@@ -252,9 +269,27 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
   -r /cmd_vel:=/mecanum_drive_controller/reference
 ```
 
-树莓派额外依赖： `sudo apt install -y libi2c-dev i2c-tools`（编译链接 `libi2c`，并用 `i2cdetect -y 1` 确认地址 `0x68`）。
+常用 launch 参数：
 
-完整验证命令（控制器状态、硬件接口、里程计方向）请参考 [验证手册](src/smartcar_bringup/doc/验证手册.md) 。
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `use_mock_hardware` | `true` | WSL2 用 mock；树莓派实机设 `false` |
+| `use_camera` | `true` | 是否启用摄像机推流；**仅**在 `use_mock_hardware:=false` 且 `use_camera:=true` 时启动 |
+| `camera_device` | `/dev/video0` | UVC 设备路径 |
+| `camera_stream_port` | `8080` | MJPEG HTTP 推流端口 |
+| `camera_ctl_port` | `8082` | 质量切换 HTTP 控制端口 |
+
+摄像机拉流与切档（旁路 ROS，不经 rosbridge）：
+
+- 画面：`http://<pi-ip>:8080/stream`
+- 切档：`http://<pi-ip>:8082/quality?mode=low|high`（`low` = 640×480@30，`high` = 1280×720@15）
+
+树莓派额外依赖：
+
+- IMU：`sudo apt install -y libi2c-dev i2c-tools`（编译链接 `libi2c`，并用 `i2cdetect -y 1` 确认地址 `0x68`）
+- 摄像机：`sudo apt install -y ustreamer`
+
+完整验证命令（控制器状态、硬件接口、里程计方向、摄像机推流）请参考 [验证手册](src/smartcar_bringup/doc/验证手册.md) 。
 
 ## 6. 后续路线图
 
@@ -266,6 +301,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - [x] 电池电量：`$read_vol#` → `/battery_state`（`sensor_msgs/BatteryState`）
 - [x] 接入 WebSocket 桥接（`rosbridge_server` 端口 9090）
 - [x] 集成 Xbox 手柄遥控（`joy` + `teleop_twist_joy`）
+- [x] USB 摄像机 MJPEG 推流（单实例 `ustreamer` + `camera_ustreamer_ctl`，上位机 `MapCameraView` 已接入）
 - [ ] udev 规则固定串口别名（`/dev/smartcar_driver`）
 - [ ] 加入 IMU + `ekf`（robot_localization）融合里程计
 - [ ] 接入 Nav2 导航栈与 SLAM（slam_toolbox）

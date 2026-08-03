@@ -19,7 +19,8 @@
   - 动态显示 S1、S2、S3 单体估计电压与低电量警告。
 - 🗺️ **高德地图定位 & 摄像机画面切换**:
   - 支持配置高德地图 Web JS API Key，基于里程计/定位高精追踪小车在地图上的实时点位与轨迹；
-  - 一键切换至摄像头画面，支持未接硬件时的科技感占位 UI 交互。
+  - 一键切换至摄像头画面：浏览器直连树莓派 MJPEG HTTP 流（**非 ROS 话题**，不经 rosbridge）；
+  - 支持低延迟 / 高清档位切换（调用质量控制口重启单实例 `ustreamer`）；未接硬件时显示断流提示与退避重连。
 - 🧭 **Three.js 3D 车体姿态可视化**: 订阅 `/imu/data_raw` 话题，实时在 WebGL 3D 麦轮模型中渲染小车横滚 (Roll)、俯仰 (Pitch)、偏航 (Yaw) 姿态变化。
 - 🎮 **全向运动控制面板**:
   - 具备前进、后退、左右平移（麦轮独有）、左右旋转与急停控制；
@@ -49,8 +50,11 @@
                                       │ ws://192.168.10.12:9090
 ┌─────────────────────────────────────▼───────────────────────────────────────┐
 │              树莓派 4B (ROS 2 Jazzy + rosbridge_websocket)                  │
+│              + ustreamer MJPEG :8080 / quality ctl :8082                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+摄像机视频为旁路链路：浏览器 `<img>` 直连 `http://<pi-ip>:8080/stream`，与 WebSocket `9090` 控制遥测解耦。
 
 ---
 
@@ -132,6 +136,26 @@ npm run dev
 | `/imu/data_raw` | `sensor_msgs/msg/Imu` | UPLINK (上传) | ~100 Hz | MPU6050 姿态角 (Roll, Pitch, Yaw) |
 | `/mecanum_drive_controller/odometry` | `nav_msgs/msg/Odometry` | UPLINK (上传) | ~50 Hz | 里程计线速度 $v_x, v_y$ 与位置坐标 $x, y$ |
 | `/mecanum_drive_controller/reference` | `geometry_msgs/msg/TwistStamped` | DOWNLINK (下发) | 按需下发 | 上位机发起的麦轮全向控制运动指令 |
+
+---
+
+## 摄像机 HTTP 流（旁路 ROS）
+
+视频**不走** ROS 话题 / rosbridge，由树莓派上的单实例 `ustreamer`（经 `camera_ustreamer_ctl` 管理）提供 MJPEG-HTTP。主机 IP 默认从导航栏 rosbridge URL 解析（如 `ws://192.168.10.17:9090` → `192.168.10.17`）。
+
+| 用途 | URL | 说明 |
+| --- | --- | --- |
+| 画面拉流 | `http://<pi-ip>:8080/stream` | 低延迟与高清共用同一推流端口；切档后 URL 不变（可带 `?t=` 缓存破坏） |
+| 档位切换 | `http://<pi-ip>:8082/quality?mode=low\|high` | `low` = 640×480@30；`high` = 1280×720@15；格式 YUYV + CPU |
+
+`MapCameraView` 行为摘要：
+
+1. 默认低延迟档，`<img src>` 指向 `:8080/stream`。
+2. 点击「高清 / 低延迟」时先请求 `:8082/quality?mode=...`，成功后再刷新 `<img>`。
+3. 断流时 `onError` 触发指数退避重连（约 1 s → 2 s → 4 s，上限 8 s）。
+4. 请以 `http://localhost:3223` 打开上位机（HTTP 页拉 HTTP 流）；若将来改为 HTTPS，需注意混合内容限制。
+
+前置：树莓派已 `sudo apt install -y ustreamer`，且 bringup 以 `use_mock_hardware:=false`、`use_camera:=true`（默认）启动。
 
 ---
 
