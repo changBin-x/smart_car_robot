@@ -11,6 +11,8 @@ Description: 管理单实例 ustreamer 进程，并提供 HTTP 质量切换控�
 from __future__ import annotations
 
 import argparse
+import errno
+import fcntl
 import http.server
 import json
 import os
@@ -18,17 +20,25 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any
+from typing import TextIO
+from urllib import error
 from urllib import parse
+from urllib import request
 
 
 DEFAULT_DEVICE = "/dev/video0"
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_STREAM_PORT = 8080
 DEFAULT_CTL_PORT = 8082
+DEFAULT_LOCK_FILE = "/tmp/smartcar_camera_ustreamer.lock"
 USTREAMER_BIN = "ustreamer"
 STOP_TIMEOUT_S = 3.0
+STARTUP_TIMEOUT_S = 2.5
+STATE_REQUEST_TIMEOUT_S = 0.5
+STARTUP_POLL_INTERVAL_S = 0.1
 
 
 @dataclass(frozen=True)
@@ -49,6 +59,53 @@ QUALITY_PROFILES = {
     "low": QualityProfile(width=640, height=480, fps=30),
     "high": QualityProfile(width=1280, height=720, fps=15),
 }
+
+
+class ProcessLock:
+    """用 flock 持有进程级互斥锁，防止多控制器抢同一摄像头。"""
+
+    def __init__(self, lock_file: str) -> None:
+        """初始化锁对象。
+
+        Args:
+            lock_file: 用于 flock 的锁文件路径。
+        """
+        self._lock_file = lock_file
+        self._file: TextIO | None = None
+
+    def acquire(self) -> None:
+        """非阻塞获取进程锁。
+
+        Raises:
+            RuntimeError: 已有其他进程持有锁。
+            OSError: 锁文件无法打开或写入。
+        """
+        lock_file = open(self._lock_file, "a+", encoding="utf-8")
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            lock_file.close()
+            if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                raise
+            raise RuntimeError(
+                "another camera_ustreamer_ctl instance is running; "
+                f"lock file: {self._lock_file}"
+            ) from exc
+
+        lock_file.seek(0)
+        lock_file.truncate()
+        lock_file.write(f"{os.getpid()}\n")
+        lock_file.flush()
+        self._file = lock_file
+
+    def release(self) -> None:
+        """释放进程锁。"""
+        if self._file is None:
+            return
+
+        fcntl.flock(self._file.fileno(), fcntl.LOCK_UN)
+        self._file.close()
+        self._file = None
 
 
 class CameraUstreamerController:
@@ -98,13 +155,21 @@ class CameraUstreamerController:
         Raises:
             ValueError: mode 不在支持列表中。
             OSError: ustreamer 启动失败。
+            RuntimeError: ustreamer 退出或状态未进入 online。
         """
         if mode not in QUALITY_PROFILES:
             raise ValueError(f"unsupported quality mode: {mode}")
 
         with self._lock:
             self._stop_locked()
-            self._process = subprocess.Popen(self._build_command(mode))
+            process = subprocess.Popen(self._build_command(mode))
+            try:
+                self._wait_until_started(process)
+            except Exception:
+                self._stop_process(process)
+                raise
+
+            self._process = process
             self._mode = mode
 
     def stop(self) -> None:
@@ -137,6 +202,77 @@ class CameraUstreamerController:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=STOP_TIMEOUT_S)
+
+    def _stop_process(self, process: subprocess.Popen[bytes]) -> None:
+        """停止指定 ustreamer 子进程。"""
+        if process.poll() is not None:
+            return
+
+        process.terminate()
+        try:
+            process.wait(timeout=STOP_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=STOP_TIMEOUT_S)
+
+    def _wait_until_started(self, process: subprocess.Popen[bytes]) -> None:
+        """等待 ustreamer 子进程存活且 /state 报告 source.online=true。
+
+        Args:
+            process: 刚启动的 ustreamer 子进程。
+
+        Raises:
+            RuntimeError: 进程提前退出或状态检查超时。
+        """
+        deadline = time.monotonic() + STARTUP_TIMEOUT_S
+        last_error = "source.online is false"
+
+        while time.monotonic() < deadline:
+            exit_code = process.poll()
+            if exit_code is not None:
+                raise RuntimeError(
+                    "ustreamer exited during startup "
+                    f"with code {exit_code}"
+                )
+
+            try:
+                if self._state_online():
+                    return
+            except (
+                error.URLError,
+                TimeoutError,
+                json.JSONDecodeError,
+                OSError,
+            ) as exc:
+                last_error = str(exc)
+
+            time.sleep(STARTUP_POLL_INTERVAL_S)
+
+        if process.poll() is not None:
+            raise RuntimeError("ustreamer exited during startup")
+
+        raise RuntimeError(
+            "ustreamer state did not become online "
+            f"within {STARTUP_TIMEOUT_S:.1f}s: {last_error}"
+        )
+
+    def _state_online(self) -> bool:
+        """读取 ustreamer /state，确认采集源已 online。"""
+        url = f"http://127.0.0.1:{self._stream_port}/state"
+        with request.urlopen(url, timeout=STATE_REQUEST_TIMEOUT_S) as response:
+            payload = json.load(response)
+
+        result = payload.get("result")
+        if isinstance(result, dict):
+            source = result.get("source")
+            if isinstance(source, dict):
+                return source.get("online") is True
+
+        source = payload.get("source")
+        if isinstance(source, dict):
+            return source.get("online") is True
+
+        return payload.get("online") is True
 
     def _build_command(self, mode: str) -> list[str]:
         """构造 ustreamer 命令行参数。"""
@@ -231,7 +367,7 @@ class CameraControlHandler(http.server.BaseHTTPRequestHandler):
 
         try:
             self.controller.start(mode)
-        except OSError as exc:
+        except Exception as exc:
             self._write_json(
                 http.HTTPStatus.INTERNAL_SERVER_ERROR,
                 {"ok": False, "error": str(exc)},
@@ -263,6 +399,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--stream-port", type=int, default=DEFAULT_STREAM_PORT)
     parser.add_argument("--ctl-port", type=int, default=DEFAULT_CTL_PORT)
     parser.add_argument("--host", default=DEFAULT_HOST)
+    parser.add_argument("--lock-file", default=DEFAULT_LOCK_FILE)
     return parser.parse_args(argv)
 
 
@@ -275,26 +412,34 @@ def main(argv: list[str]) -> int:
         host=args.host,
     )
     CameraControlHandler.controller = controller
-
-    server = http.server.ThreadingHTTPServer(
-        (args.host, args.ctl_port),
-        CameraControlHandler,
-    )
-
-    def _handle_signal(signum: int, _frame: Any) -> None:
-        """异步停止 HTTP 服务，避免在信号处理路径中阻塞主线程。"""
-        del signum
-        threading.Thread(target=server.shutdown, daemon=True).start()
-
-    signal.signal(signal.SIGINT, _handle_signal)
-    signal.signal(signal.SIGTERM, _handle_signal)
-
-    controller.start("low")
+    process_lock = ProcessLock(args.lock_file)
+    server: http.server.ThreadingHTTPServer | None = None
     try:
+        process_lock.acquire()
+        server = http.server.ThreadingHTTPServer(
+            (args.host, args.ctl_port),
+            CameraControlHandler,
+        )
+
+        def _handle_signal(signum: int, _frame: Any) -> None:
+            """异步停止 HTTP 服务，避免在信号处理路径中阻塞主线程。"""
+            del signum
+            if server is not None:
+                threading.Thread(target=server.shutdown, daemon=True).start()
+
+        signal.signal(signal.SIGINT, _handle_signal)
+        signal.signal(signal.SIGTERM, _handle_signal)
+
+        controller.start("low")
         server.serve_forever()
+    except Exception as exc:
+        sys.stderr.write(f"camera_ustreamer_ctl failed: {exc}\n")
+        return os.EX_SOFTWARE
     finally:
         controller.stop()
-        server.server_close()
+        if server is not None:
+            server.server_close()
+        process_lock.release()
 
     return os.EX_OK
 
