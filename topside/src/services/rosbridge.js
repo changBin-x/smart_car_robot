@@ -4,7 +4,7 @@ class RosService {
   constructor() {
     this.ros = null;
     this.isConnected = false;
-    this.url = 'ws://192.168.10.12:9090'; // Default Raspberry Pi IP
+    this.url = 'ws://192.168.10.17:9090'; // Default Raspberry Pi IP
     this.listeners = new Set();
     this.topics = {};
 

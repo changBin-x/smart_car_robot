@@ -73,7 +73,7 @@ app.get('*', (req, res) => {
 
 // ROS Bridge Telemetry Logger Agent
 let rosWs = null;
-let rosUrl = process.env.ROS_BRIDGE_URL || 'ws://192.168.10.12:9090';
+let rosUrl = process.env.ROS_BRIDGE_URL || 'ws://192.168.10.17:9090';
 
 function connectRosBridge() {
   console.log(`[Topside Backend] Connecting to ROS Bridge at ${rosUrl}...`);
