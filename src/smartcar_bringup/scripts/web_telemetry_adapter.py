@@ -55,15 +55,16 @@ def quaternion_to_yaw(orientation: Any) -> float:
     if orientation is None:
         return 0.0
 
-    components = [
-        _finite_value(getattr(orientation, name, None))
+    raw_components = [
+        getattr(orientation, name, None)
         for name in ("x", "y", "z", "w")
     ]
+    components = [_finite_value(value) for value in raw_components]
     x, y, z, w = components
-    if not any(components) or not all(
-        math.isfinite(getattr(orientation, name, float("nan")))
-        for name in ("x", "y", "z", "w")
-    ):
+    if not any(components):
+        return 0.0
+
+    if any(value != raw_value for value, raw_value in zip(components, raw_components)):
         return 0.0
 
     yaw = math.atan2(

@@ -13,6 +13,7 @@ import unittest
 from types import SimpleNamespace
 
 from web_telemetry_adapter import extract_telemetry
+from web_telemetry_adapter import quaternion_to_yaw
 
 
 def make_odometry(
@@ -109,3 +110,19 @@ class TelemetryExtractionTest(unittest.TestCase):
                 "angular_z": 0.0,
             },
         )
+
+
+class QuaternionToYawTest(unittest.TestCase):
+    """验证四元数转 yaw 的防御性行为。"""
+
+    def test_invalid_component_types_fall_back_to_zero(self):
+        orientation = SimpleNamespace(
+            x=None,
+            y="invalid",
+            z=0.0,
+            w=1.0,
+        )
+
+        result = quaternion_to_yaw(orientation)
+
+        self.assertEqual(result, 0.0)
