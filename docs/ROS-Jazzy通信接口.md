@@ -16,10 +16,18 @@ Linux 手柄设备 (/dev/input/jsX)
     joy_node
         │  sensor_msgs/Joy (/joy)
         ▼
-teleop_twist_joy_node / ros-mcp-server / teleop_twist_keyboard / Web UI (rosbridge 端口 9090)
+teleop_twist_joy_node / ros-mcp-server / teleop_twist_keyboard / Web UI（控制下发）
         │  geometry_msgs/TwistStamped
         ▼
 mecanum_drive_controller ──► /odometry, /tf (odom → base_link)
+        │
+        ▼
+  web_telemetry_adapter
+        │  geometry_msgs/TwistStamped + geometry_msgs/Pose2D
+        ▼
+rosbridge_websocket / Web UI（轻量遥测订阅，端口 9090）
+
+mecanum_drive_controller
         │  velocity 命令 × 4
         ▼
 controller_manager / MecanumSystemHardware (motor_driver)
@@ -58,7 +66,8 @@ MPU6050 (I2C-1, 0x68)
 | `/mpu6050_sensor` | 节点 | MPU6050 IMU 驱动，发布 `/imu/data_raw` |
 | `/joy_node` | 节点 | Linux 游戏手柄接入驱动（`joy` 包），发布 `/joy` |
 | `/teleop_twist_joy_node` | 节点 | 手柄遥控转换节点（`teleop_twist_joy` 包），解析 `/joy` 转为 `TwistStamped` |
-| `/rosbridge_websocket` | 节点 | WebSocket 通信桥接服务（端口 `9090`，`rosbridge_server` 包），供 Web 上层远程调用 ROS 2 接口 |
+| `/web_telemetry_adapter` | 节点 | 订阅 `/mecanum_drive_controller/odometry`，发布 `/web/telemetry/twist` 与 `/web/telemetry/pose2d` 供 Web 侧消费 |
+| `/rosbridge_websocket` | 节点 | WebSocket 通信桥接服务（端口 `9090`，`rosbridge_server` 包），供 Web 上层下发控制并订阅轻量遥测接口 |
 | ros-mcp-server / teleop | 外部 | 向 `/mecanum_drive_controller/reference` 下发速度指令 |
 
 控制循环默认 **50 Hz**（见 `controllers.yaml` 的 `update_rate`）。
@@ -71,6 +80,8 @@ MPU6050 (I2C-1, 0x68)
 |---|---|---|---|---|---|
 | `/mecanum_drive_controller/reference` | `geometry_msgs/msg/TwistStamped` | 订阅 | 由发布方决定（遥控建议 ≥ 10 Hz） | `teleop_twist_joy_node` / MCP / `teleop_twist_keyboard` / WebSocket | 期望车体速度；超时 `reference_timeout=0.5 s` 后清零 |
 | `/mecanum_drive_controller/odometry` | `nav_msgs/msg/Odometry` | 发布 | ~50 Hz | `mecanum_drive_controller` | 轮速积分里程计 |
+| `/web/telemetry/twist` | `geometry_msgs/msg/TwistStamped` | 发布 | ~50 Hz | `web_telemetry_adapter` | 供 `rosbridge` / Web UI 订阅的轻量速度遥测接口，字段对应底盘平面线速度与角速度 |
+| `/web/telemetry/pose2d` | `geometry_msgs/msg/Pose2D` | 发布 | ~50 Hz | `web_telemetry_adapter` | 供 `rosbridge` / Web UI 订阅的轻量二维位姿接口，仅保留 `x`、`y`、`theta` |
 | `/mecanum_drive_controller/tf_odometry` | `tf2_msgs/msg/TFMessage` | 发布 | ~50 Hz | `mecanum_drive_controller` | 里程计 TF（若启用） |
 | `/mecanum_drive_controller/controller_state` | `control_msgs/msg/MecanumDriveControllerState` | 发布 | ~50 Hz | `mecanum_drive_controller` | 控制器内部状态（含各轮速度） |
 | `/joint_states` | `sensor_msgs/msg/JointState` | 发布 | ~50 Hz | `joint_state_broadcaster` | 四轮 `position` / `velocity` |
@@ -84,6 +95,12 @@ MPU6050 (I2C-1, 0x68)
 
 > 说明：`battery_state_broadcaster` 原生话题为 `/battery_state_broadcaster/battery_state`，
 > launch 中已 remap 为 `/battery_state`。
+
+> Web 遥测说明：`/mecanum_drive_controller/odometry` 继续保留给 ROS 内部调试、
+> 记录与算法模块使用。Web UI 不再通过 `rosbridge` 直接订阅原始 `Odometry`，
+> 而是改为订阅 `/web/telemetry/twist` 与 `/web/telemetry/pose2d`。这样可以规避
+> 树莓派实机上 `rosbridge_websocket` 直接序列化 `nav_msgs/msg/Odometry` 时出现的
+> `cannot serialize type <class 'nav_msgs.msg._odometry.Odometry'>` 异常。
 
 ---
 
@@ -243,6 +260,7 @@ ros2 control list_hardware_interfaces
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-04 | 新增 `web_telemetry_adapter` 节点说明；补充 `/web/telemetry/twist` 与 `/web/telemetry/pose2d` 两个轻量遥测话题；明确 Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，以规避 `rosbridge` 序列化 `Odometry` 异常 |
 | 2026-07-23 | 全面重构通信接口说明：补充 `joy_node` 与 `teleop_twist_joy_node` 节点拓扑及 `/joy` 话题表；补充 `/rosbridge_websocket` 服务节点（端口 `9090`）；新增 §5 Xbox 手柄遥控接口章；更新底层麦轮运动学几何参数与投影和数值；按 `/chinese-documentation` 规范化排版 |
 | 2026-07-21 | MPU6050 改为源码纳入；节点读取 `i2c_*` 参数；`smartcar.launch.py` 实机启 IMU |
 | 2026-07-21 | 新增 MPU6050 IMU 接口说明（§6） |

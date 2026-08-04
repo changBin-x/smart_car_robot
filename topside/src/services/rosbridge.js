@@ -1,5 +1,18 @@
 import ROSLIB from 'roslib';
 
+const finiteNumber = (value) => (
+  typeof value === 'number' && Number.isFinite(value) ? value : 0
+);
+
+const nestedNumber = (message, ...path) => {
+  let value = message;
+  for (const key of path) {
+    if (value === null || typeof value !== 'object') return 0;
+    value = value[key];
+  }
+  return finiteNumber(value);
+};
+
 class RosService {
   constructor() {
     this.ros = null;
@@ -22,7 +35,11 @@ class RosService {
       odomY: 0,
       rawImu: null,
       rawBattery: null,
-      rawOdom: null
+      // 缓存最新的 Web 遥测消息，不再缓存完整 Odometry。
+      rawOdom: {
+        twist: null,
+        pose2d: null
+      }
     };
   }
 
@@ -128,26 +145,40 @@ class RosService {
       this.notifyListeners({ type: 'TOPIC_MSG', topic: '/imu/data_raw', message, direction: 'UPLINK' });
     });
 
-    // 3. Odometry Topic
-    this.topics.odom = new ROSLIB.Topic({
+    // 3. Web Telemetry Topics
+    this.topics.telemetryTwist = new ROSLIB.Topic({
       ros: this.ros,
-      name: '/mecanum_drive_controller/odometry',
-      messageType: 'nav_msgs/msg/Odometry'
+      name: '/web/telemetry/twist',
+      messageType: 'geometry_msgs/msg/TwistStamped'
     });
 
-    this.topics.odom.subscribe((message) => {
-      this.telemetry.rawOdom = message;
-      if (message.twist && message.twist.twist) {
-        this.telemetry.linearX = message.twist.twist.linear.x || 0;
-        this.telemetry.linearY = message.twist.twist.linear.y || 0;
-        this.telemetry.angularZ = message.twist.twist.angular.z || 0;
-      }
-      if (message.pose && message.pose.pose) {
-        this.telemetry.odomX = message.pose.pose.position.x || 0;
-        this.telemetry.odomY = message.pose.pose.position.y || 0;
-      }
+    this.topics.telemetryTwist.subscribe((message) => {
+      this.telemetry.rawOdom = {
+        ...this.telemetry.rawOdom,
+        twist: message || null
+      };
+      this.telemetry.linearX = nestedNumber(message, 'twist', 'linear', 'x');
+      this.telemetry.linearY = nestedNumber(message, 'twist', 'linear', 'y');
+      this.telemetry.angularZ = nestedNumber(message, 'twist', 'angular', 'z');
       this.notifyListeners({ type: 'TELEMETRY_UPDATE', telemetry: this.telemetry });
-      this.notifyListeners({ type: 'TOPIC_MSG', topic: '/mecanum_drive_controller/odometry', message, direction: 'UPLINK' });
+      this.notifyListeners({ type: 'TOPIC_MSG', topic: '/web/telemetry/twist', message, direction: 'UPLINK' });
+    });
+
+    this.topics.telemetryPose2d = new ROSLIB.Topic({
+      ros: this.ros,
+      name: '/web/telemetry/pose2d',
+      messageType: 'geometry_msgs/msg/Pose2D'
+    });
+
+    this.topics.telemetryPose2d.subscribe((message) => {
+      this.telemetry.rawOdom = {
+        ...this.telemetry.rawOdom,
+        pose2d: message || null
+      };
+      this.telemetry.odomX = nestedNumber(message, 'x');
+      this.telemetry.odomY = nestedNumber(message, 'y');
+      this.notifyListeners({ type: 'TELEMETRY_UPDATE', telemetry: this.telemetry });
+      this.notifyListeners({ type: 'TOPIC_MSG', topic: '/web/telemetry/pose2d', message, direction: 'UPLINK' });
     });
 
     // 4. Reference Command Publisher & Subscriber

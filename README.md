@@ -1,7 +1,7 @@
 # smart_car_robot —— 四轮麦克纳姆轮全向移动小车
 
 基于 **ROS 2 Jazzy + ros2_control** 的四轮麦克纳姆轮全向移动平台。项目远程仓库为： [smart_car_robot](https://github.com/changBin-x/smart_car_robot.git)
-上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与里程计，集成 `rosbridge_server` 提供 WebSocket 通信服务，并支持 Xbox 手柄遥控（`joy` + `teleop_twist_joy`），
+上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与里程计，集成 `rosbridge_server` 提供 WebSocket 通信服务，并通过 `web_telemetry_adapter` 向 Web UI 输出轻量遥测话题，同时支持 Xbox 手柄遥控（`joy` + `teleop_twist_joy`），
 底层通过自研 `hardware_interface::SystemInterface` 插件（`motor_driver`）经 USB 串口
 驱动 4 路电机驱动板，闭环控制 4 个 MG310 霍尔编码器减速电机。
 
@@ -49,7 +49,8 @@
 ```mermaid
 graph TD
     subgraph 用户层
-        TELEOP["teleop_twist_keyboard / Nav2 / Web UI<br/>(TwistStamped / WebSocket)"]
+        TELEOP["teleop_twist_keyboard / Nav2 / Web UI 控制面<br/>(TwistStamped / WebSocket)"]
+        WEBUI["Web UI 遥测面<br/>(订阅 /web/telemetry/*)"]
         ROSBRIDGE["rosbridge_server<br/>(rosbridge_websocket 端口 9090)"]
         JOY["joy_node + teleop_twist_joy_node<br/>(Xbox 手柄 /dev/input/js0)"]
     end
@@ -58,6 +59,9 @@ graph TD
         MDC["mecanum_drive_controller<br/>(运动学解算 + /odom + TF)"]
         JSB["joint_state_broadcaster<br/>(/joint_states)"]
         RI["ResourceManager<br/>(接口注册与仲裁)"]
+    end
+    subgraph "Web 适配层"
+        WTA["web_telemetry_adapter<br/>(/web/telemetry/twist<br/>+ /web/telemetry/pose2d)"]
     end
     subgraph "硬件抽象层 (motor_driver 包)"
         HW["MecanumSystemHardware :<br/>hardware_interface::SystemInterface"]
@@ -72,7 +76,10 @@ graph TD
     ROSBRIDGE -->|"/mecanum_drive_controller/reference"| MDC
     JOY -->|"/mecanum_drive_controller/reference"| MDC
     TELEOP -->|"WebSocket / Topic"| ROSBRIDGE
+    WEBUI -->|"WebSocket / Topic"| ROSBRIDGE
     TELEOP -->|"/mecanum_drive_controller/reference"| MDC
+    MDC -->|"/mecanum_drive_controller/odometry"| WTA
+    WTA -->|"/web/telemetry/*"| ROSBRIDGE
     CM --> MDC
     CM --> JSB
     MDC -->|"velocity 命令接口 ×4"| RI
@@ -87,7 +94,8 @@ graph TD
 - **mecanum_drive_controller**：订阅 `TwistStamped` 期望速度，按麦轮逆运动学拆成 4 个轮子的
   `velocity` 命令；同时用轮速正运动学积分出 `/odom` 并发布 `odom → base_link` TF。
 - **joint_state_broadcaster**：把 8 个状态接口转发为 `/joint_states`。
-- **rosbridge_server**：启动 WebSocket 服务（包含 `rosbridge_websocket_launch.xml`），默认监听端口 `9090`，方便网页及上层 UI 远程调用 ROS 2 话题与服务。
+- **web_telemetry_adapter**：订阅 `/mecanum_drive_controller/odometry`，提取二维位姿与平面速度，发布 `/web/telemetry/twist` 和 `/web/telemetry/pose2d` 供 Web UI 订阅。
+- **rosbridge_server**：启动 WebSocket 服务（包含 `rosbridge_websocket_launch.xml`），默认监听端口 `9090`。Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，而是通过 `/web/telemetry/*` 消费轻量遥测数据。
 - **Xbox 手柄遥控**：启动 `joy_node` 接入 `/dev/input/js0` 设备，由 `teleop_twist_joy_node` 转换左摇杆上下（前后移动）、左摇杆左右（转弯）与右摇杆左右（左右平移）为 `TwistStamped`。
 - **motor_driver**：读——解析驱动板周期上报的编码器计数，换算 rad / rad/s；
   写——把 rad/s 命令换算为 mm/s 下发 `$spd` 指令。详见 [motor_driver/README.md](src/motor_driver/README.md)。
@@ -269,6 +277,14 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
   -r /cmd_vel:=/mecanum_drive_controller/reference
 ```
 
+Web 遥测接口约定：
+
+- Web UI 速度遥测：`/web/telemetry/twist`（`geometry_msgs/msg/TwistStamped`）
+- Web UI 位姿遥测：`/web/telemetry/pose2d`（`geometry_msgs/msg/Pose2D`）
+- ROS 内部原始里程计：`/mecanum_drive_controller/odometry`（`nav_msgs/msg/Odometry`，保留给调试、录包与算法模块）
+- 这样拆分的原因是：树莓派实机上的 `rosbridge_websocket` 直接序列化原始 `Odometry`
+  时可能报 `cannot serialize type <class 'nav_msgs.msg._odometry.Odometry'>`。因此 Web UI 必须改为订阅 `/web/telemetry/*`。
+
 常用 launch 参数：
 
 | 参数 | 默认值 | 说明 |
@@ -299,7 +315,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 - [ ] 树莓派实机联调：编码器倍频 K 标定、轮距实测回填
 - [x] 电机方向系数校准（2026-07-19：`direction_m2/m3=-1`）
 - [x] 电池电量：`$read_vol#` → `/battery_state`（`sensor_msgs/BatteryState`）
-- [x] 接入 WebSocket 桥接（`rosbridge_server` 端口 9090）
+- [x] 接入 WebSocket 桥接（`rosbridge_server` 端口 9090）与 Web 遥测适配层（`/web/telemetry/*`）
 - [x] 集成 Xbox 手柄遥控（`joy` + `teleop_twist_joy`）
 - [x] USB 摄像机 MJPEG 推流（单实例 `ustreamer` + `camera_ustreamer_ctl`，上位机 `MapCameraView` 已接入）
 - [ ] udev 规则固定串口别名（`/dev/smartcar_driver`）

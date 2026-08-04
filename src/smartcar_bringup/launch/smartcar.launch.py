@@ -274,6 +274,13 @@ def generate_launch_description():
         ],
     )
 
+    # 将完整里程计转换为 Web 端使用的轻量标准遥测消息。
+    web_telemetry_adapter = Node(
+        package="smartcar_bringup",
+        executable="web_telemetry_adapter.py",
+        output="both",
+    )
+
     # ---------------- rosbridge_server WebSocket 桥接 ----------------
     # 启动 WebSocket 桥接服务，暴露 9090 端口供 Web 上层与 ROS 2 通信
     rosbridge_launch = IncludeLaunchDescription(
@@ -330,6 +337,7 @@ def generate_launch_description():
             delay_mecanum_after_jsb,
             delay_battery_after_jsb,
             mpu6050_node,
+            web_telemetry_adapter,
             rviz_node,
             rosbridge_launch,
             joy_teleop_launch,
