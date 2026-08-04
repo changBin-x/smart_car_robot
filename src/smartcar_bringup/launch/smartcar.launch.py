@@ -2,7 +2,7 @@
 Author: ChangBin bin_chang@qq.com
 Date: 2026-08-03
 LastEditors: ChangBin bin_chang@qq.com
-LastEditTime: 2026-08-03
+LastEditTime: 2026-08-04
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
 Description: 一键启动四轮麦克纳姆小车控制栈与实机摄像头推流控制器
 -----------------------------------------------------------
@@ -13,14 +13,16 @@ Description: 一键启动四轮麦克纳姆小车控制栈与实机摄像头推�
   4) mecanum_drive_controller（spawner，等 broadcaster 起来后再加载）
   5) battery_state_broadcaster（spawner，发布 /battery_state）
   6) mpu6050_sensor        —— MPU6050 IMU 驱动（I2C 地址 0x68）
-  7) rosbridge_websocket   —— rosbridge_server 的 WebSocket 桥接（端口 9090）
-  8) joy_teleop            —— Xbox 手柄遥控栈（可选参数 use_joy:=true 启动）
-  9) camera_ustreamer_ctl  —— 单实例 ustreamer 摄像头推流与质量切换控制
+  7) ekf_filter_node_odom  —— 可选 EKF，融合轮速里程计与 MPU6050
+  8) rosbridge_websocket   —— rosbridge_server 的 WebSocket 桥接（端口 9090）
+  9) joy_teleop            —— Xbox 手柄遥控栈（可选参数 use_joy:=true 启动）
+ 10) camera_ustreamer_ctl  —— 单实例 ustreamer 摄像头推流与质量切换控制
 
 launch 参数：
   use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
   serial_port       (默认 /dev/ttyUSB0)：实机驱动板串口设备名
   baud_rate         (默认 115200)
+  use_ekf           (默认 false)：是否启动 odom 局部 EKF 融合节点
   i2c_device        (默认 /dev/i2c-1)：MPU6050 I2C 总线
   i2c_address       (默认 0x68)：MPU6050 I2C 地址
   use_joy           (默认 false)：是否同时启动 Xbox 手柄遥控栈
@@ -33,9 +35,13 @@ launch 参数：
 用法：
   WSL2 仿真：ros2 launch smartcar_bringup smartcar.launch.py
   实机：     ros2 launch smartcar_bringup smartcar.launch.py \
-                use_mock_hardware:=false serial_port:=/dev/ttyUSB0 use_joy:=true
+                use_mock_hardware:=false serial_port:=/dev/ttyUSB0
+  实机融合： ros2 launch smartcar_bringup smartcar.launch.py \
+                use_mock_hardware:=false serial_port:=/dev/ttyUSB0 \
+                use_ekf:=true
   说明：实机（use_mock_hardware:=false）时一并启动 MPU6050；
-        WSL2 mock 模式不启 IMU（无 I2C 硬件）。
+        WSL2 mock 模式不启 IMU（无 I2C 硬件），但可显式
+        use_ekf:=true 验证 EKF 配置加载。
 """
 
 from launch import LaunchDescription
@@ -85,6 +91,11 @@ def generate_launch_description():
             description="是否同时打开 RViz2 可视化",
         ),
         DeclareLaunchArgument(
+            "use_ekf",
+            default_value="false",
+            description="是否启动 odom 局部 EKF 融合节点",
+        ),
+        DeclareLaunchArgument(
             "i2c_device",
             default_value="/dev/i2c-1",
             description="MPU6050 I2C 总线设备路径（实机生效）",
@@ -130,6 +141,7 @@ def generate_launch_description():
     serial_port = LaunchConfiguration("serial_port")
     baud_rate = LaunchConfiguration("baud_rate")
     use_rviz = LaunchConfiguration("use_rviz")
+    use_ekf = LaunchConfiguration("use_ekf")
     i2c_device = LaunchConfiguration("i2c_device")
     i2c_address = LaunchConfiguration("i2c_address")
     use_joy = LaunchConfiguration("use_joy")
@@ -143,6 +155,7 @@ def generate_launch_description():
     mpu6050_params = PathJoinSubstitution(
         [FindPackageShare("ros2_mpu6050"), "config", "params.yaml"]
     )
+    ekf_params = PathJoinSubstitution([pkg_share, "config", "ekf_odom.yaml"])
 
     # ---------------- 用 xacro 展开 URDF ----------------
     # robot_description 是一个"运行时字符串"，由 xacro 命令即时生成，
@@ -274,6 +287,20 @@ def generate_launch_description():
         ],
     )
 
+    # EKF 仅在显式 use_ekf:=true 时启动；mock 模式可用于验证配置加载。
+    # 控制器已关闭 odom TF，启用 EKF 后由本节点发布 odom → base_footprint。
+    ekf_node = Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="ekf_filter_node_odom",
+        output="both",
+        condition=IfCondition(use_ekf),
+        parameters=[ekf_params],
+        remappings=[
+            ("odometry/filtered", "/odometry/filtered"),
+        ],
+    )
+
     # 将完整里程计转换为 Web 端使用的轻量标准遥测消息。
     web_telemetry_adapter = Node(
         package="smartcar_bringup",
@@ -337,6 +364,7 @@ def generate_launch_description():
             delay_mecanum_after_jsb,
             delay_battery_after_jsb,
             mpu6050_node,
+            ekf_node,
             web_telemetry_adapter,
             rviz_node,
             rosbridge_launch,

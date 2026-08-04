@@ -26,6 +26,10 @@ install(
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(
+    test_ekf_config
+    test/test_ekf_config.py
+  )
+  ament_add_pytest_test(
     test_web_telemetry_adapter
     test/test_web_telemetry_adapter.py
     APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts

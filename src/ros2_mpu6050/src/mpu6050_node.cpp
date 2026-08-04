@@ -2,7 +2,7 @@
  * Author: ChangBin bin_chang@qq.com
  * Date: 2026-07-21
  * LastEditors: ChangBin bin_chang@qq.com
- * LastEditTime: 2026-07-21
+ * LastEditTime: 2026-08-04
  * Copyright (c) 2026 by ChangBin, All Rights Reserved.
  * Description: MPU6050 ROS 2 节点实现：读 I2C 参数并发布 Imu
  */
@@ -22,6 +22,12 @@ namespace {
 
 /** 本项目默认：AD0 接 GND → 从地址 0x68。 */
 constexpr std::uint8_t kDefaultI2cAddress = 0x68;
+
+/** 原始加速度默认方差，单位 (m/s^2)^2，实机标定后可覆盖。 */
+constexpr double kDefaultLinearAccelerationVariance = 0.04;
+
+/** 原始角速度默认方差，单位 (rad/s)^2，实机标定后可覆盖。 */
+constexpr double kDefaultAngularVelocityVariance = 0.0004;
 
 }  // namespace
 
@@ -43,6 +49,10 @@ Mpu6050Node::Mpu6050Node(const std::string& name) : Node(name) {
   this->declare_parameter<double>("accel_x_offset", 0.0);
   this->declare_parameter<double>("accel_y_offset", 0.0);
   this->declare_parameter<double>("accel_z_offset", 0.0);
+  this->declare_parameter<double>("linear_acceleration_variance",
+                                  kDefaultLinearAccelerationVariance);
+  this->declare_parameter<double>("angular_velocity_variance",
+                                  kDefaultAngularVelocityVariance);
 
   const std::string i2c_device =
       this->get_parameter("i2c_device").as_string();
@@ -61,6 +71,10 @@ Mpu6050Node::Mpu6050Node(const std::string& name) : Node(name) {
   accel_x_offset_ = this->get_parameter("accel_x_offset").as_double();
   accel_y_offset_ = this->get_parameter("accel_y_offset").as_double();
   accel_z_offset_ = this->get_parameter("accel_z_offset").as_double();
+  linear_acceleration_variance_ = ReadNonNegativeVariance(
+      "linear_acceleration_variance", kDefaultLinearAccelerationVariance);
+  angular_velocity_variance_ = ReadNonNegativeVariance(
+      "angular_velocity_variance", kDefaultAngularVelocityVariance);
 
   mpu6050_dev_->Mpu6050_GyroFsSel(static_cast<Mpu6050::Mpu6050_FsSel_t>(
       this->get_parameter("gyro_fs_sel").as_int()));
@@ -103,11 +117,26 @@ std::uint8_t Mpu6050Node::ParseI2cAddress(const std::string& text,
   return static_cast<std::uint8_t>(value);
 }
 
+double Mpu6050Node::ReadNonNegativeVariance(
+    const std::string& parameter_name, double default_variance) const {
+  const double value = this->get_parameter(parameter_name).as_double();
+  if (!std::isfinite(value) || value < 0.0) {
+    RCLCPP_ERROR(this->get_logger(),
+                 "invalid %s %.6f, using default %.6f",
+                 parameter_name.c_str(), value, default_variance);
+    return default_variance;
+  }
+  return value;
+}
+
 void Mpu6050Node::ImuPubCallback() {
   auto message = sensor_msgs::msg::Imu();
   message.header.stamp = this->get_clock()->now();
   message.header.frame_id = "base_link";
-  message.linear_acceleration_covariance = {0};
+  message.linear_acceleration_covariance = {
+      linear_acceleration_variance_, 0.0, 0.0,
+      0.0, linear_acceleration_variance_, 0.0,
+      0.0, 0.0, linear_acceleration_variance_};
 
   Mpu6050::Mpu6050_AccelData_t AccelData;
   Mpu6050::Mpu6050_GyroData_t GyroData;
@@ -118,7 +147,10 @@ void Mpu6050Node::ImuPubCallback() {
   message.linear_acceleration.x = AccelData.Accel_X - accel_x_offset_;
   message.linear_acceleration.y = AccelData.Accel_Y - accel_y_offset_;
   message.linear_acceleration.z = AccelData.Accel_Z - accel_z_offset_;
-  message.angular_velocity_covariance[0] = {0};
+  message.angular_velocity_covariance = {
+      angular_velocity_variance_, 0.0, 0.0,
+      0.0, angular_velocity_variance_, 0.0,
+      0.0, 0.0, angular_velocity_variance_};
   message.angular_velocity.x =
       (GyroData.Gyro_X - gyro_x_offset_) * (M_PI / 180.0);
   message.angular_velocity.y =

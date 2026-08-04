@@ -2,7 +2,7 @@
  * Author: ChangBin bin_chang@qq.com
  * Date: 2026-07-21
  * LastEditors: ChangBin bin_chang@qq.com
- * LastEditTime: 2026-07-21
+ * LastEditTime: 2026-08-04
  * Copyright (c) 2026 by ChangBin, All Rights Reserved.
  * Description: MPU6050 ROS 2 节点头文件（发布 sensor_msgs/Imu）
  */
@@ -44,6 +44,17 @@ class Mpu6050Node : public rclcpp::Node {
   std::uint8_t ParseI2cAddress(const std::string& text,
                                std::uint8_t default_addr) const;
 
+  /**
+   * @brief 读取非负协方差参数。
+   *
+   * 非有限值或负数没有物理意义，会导致 EKF 过度信任或拒绝传感器。
+   * @param parameter_name 参数名。
+   * @param default_variance 参数非法时的回退方差。
+   * @return 可用于 Imu 协方差矩阵对角线的非负方差。
+   */
+  double ReadNonNegativeVariance(const std::string& parameter_name,
+                                 double default_variance) const;
+
   /** @brief 定时回调：读加速度/角速度并发布 Imu 消息。 */
   void ImuPubCallback();
 
@@ -57,6 +68,8 @@ class Mpu6050Node : public rclcpp::Node {
   double accel_x_offset_{0.0};
   double accel_y_offset_{0.0};
   double accel_z_offset_{0.0};
+  double linear_acceleration_variance_{0.04};
+  double angular_velocity_variance_{0.0004};
 };
 
 #endif  // MPU6050DRIVER_H

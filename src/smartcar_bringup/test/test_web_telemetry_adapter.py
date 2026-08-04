@@ -9,8 +9,14 @@ Description: 在不依赖 ROS 运行时的情况下验证里程计字段提取�
 """
 
 import math
+import sys
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
+
+
+SCRIPTS_DIR = Path(__file__).parents[1] / "scripts"
+sys.path.insert(0, str(SCRIPTS_DIR))
 
 from web_telemetry_adapter import extract_telemetry
 from web_telemetry_adapter import quaternion_to_yaw

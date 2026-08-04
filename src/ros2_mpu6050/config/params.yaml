@@ -1,9 +1,20 @@
 # Sensor related parameters
 # 本项目默认：树莓派 I2C-1，MPU6050 AD0 接 GND → 地址 0x68
+# 坐标约定（供 robot_localization EKF 使用）：
+# - MPU6050 芯片中心必须安装在车体 base_link 原点。
+# - MPU6050 使用右手系：+x 前方、+y 左方、+z 上方。
+# - 芯片丝印或板载坐标轴必须和车体坐标轴平行，不在驱动中交换轴。
+# - 发布 sensor_msgs/Imu 时，线加速度单位为 m/s^2，角速度单位为 rad/s。
 mpu6050_sensor:
   ros__parameters:
     i2c_device: "/dev/i2c-1"
     i2c_address: "0x68"
+
+    # EKF 使用协方差判断传感器可信度；不要把原始 MPU6050 标成 0 噪声。
+    # 这些默认值是保守起点，实机标定后应按静止采样方差回填。
+    linear_acceleration_variance: 0.04
+    angular_velocity_variance: 0.0004
+
     #FS_SEL  |  Full Scale Range
     #        |
     #   0    |  +- 250 deg/s
@@ -41,11 +52,11 @@ mpu6050_sensor:
     #   7    |  Stops the clock and keeps the timing generator in reset
     clock_src: 0
 
-    # [deg/s]
+    # 陀螺仪零偏单位为 deg/s；驱动发布前转换为 rad/s。
     gyro_x_offset: 0.0
     gyro_y_offset: 0.0
     gyro_z_offset: 0.0
-    # [m/s²]
+    # 加速度零偏单位为 m/s^2。
     accel_x_offset: 0.0
     accel_y_offset: 0.0
     accel_z_offset: 0.0

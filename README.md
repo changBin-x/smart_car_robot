@@ -1,7 +1,7 @@
 # smart_car_robot —— 四轮麦克纳姆轮全向移动小车
 
 基于 **ROS 2 Jazzy + ros2_control** 的四轮麦克纳姆轮全向移动平台。项目远程仓库为： [smart_car_robot](https://github.com/changBin-x/smart_car_robot.git)
-上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与里程计，集成 `rosbridge_server` 提供 WebSocket 通信服务，并通过 `web_telemetry_adapter` 向 Web UI 输出轻量遥测话题，同时支持 Xbox 手柄遥控（`joy` + `teleop_twist_joy`），
+上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与原始轮速里程计，实车可显式启用 `robot_localization` 的 `ekf_filter_node_odom`，将轮速里程计速度量与 MPU6050 的 `/imu/data_raw` 融合为 `/odometry/filtered`，并由 EKF 独占发布 `odom -> base_footprint` 动态 TF。项目集成 `rosbridge_server` 提供 WebSocket 通信服务，并通过 `web_telemetry_adapter` 向 Web UI 输出轻量遥测话题，同时支持 Xbox 手柄遥控（`joy` + `teleop_twist_joy`），
 底层通过自研 `hardware_interface::SystemInterface` 插件（`motor_driver`）经 USB 串口
 驱动 4 路电机驱动板，闭环控制 4 个 MG310 霍尔编码器减速电机。
 
@@ -18,7 +18,7 @@
 | 车轮       | 麦克纳姆轮 Ø60 mm                                          | 4    | 左前/右前为镜像 A/B 轮 |
 | 电池       | 2S 锂电（7.4 V，5–12 V 均可）                              | 1    | 驱动板供电             |
 | 数据线     | USB A → Type-C                                             | 1    | 树莓派 ↔ 驱动板串口    |
-| IMU        | MPU6050（I2C，地址 0x68）                                  | 1    | 6 轴姿态传感器         |
+| IMU        | MPU6050（I2C，地址 0x68）                                  | 1    | 原始 IMU，芯片中心等同 `base_link` 原点 |
 | USB 摄像机 | 1080P UVC（`/dev/video0`）                                 | 1    | MJPEG-HTTP 旁路推流    |
 | 手柄       | Xbox 无线/有线手柄（Linux 设备 `/dev/input/js0`）          | 1    | 遥控手柄（可选）       |
 
@@ -43,6 +43,7 @@
 - 驱动板由电池供电，Type-C 仅作串口通信；树莓派独立供电。
 - 串口协议细节（指令表、单位换算公式）请参考 [协议总结](docs/协议总结.md) 。
 - MPU6050 接线：VCC → 树莓派 3.3V，GND → GND，SDA → GPIO 2 (Pin 3)，SCL → GPIO 3 (Pin 5)，AD0 → GND（地址 0x68）。
+- MPU6050 安装：芯片中心按机械定义等同 `base_link` 原点，坐标轴需与车体右手系对齐：`+x` 向前、`+y` 向左、`+z` 向上。
 
 ## 2. 软件架构
 
@@ -56,9 +57,17 @@ graph TD
     end
     subgraph "ros2_control 框架"
         CM[controller_manager]
-        MDC["mecanum_drive_controller<br/>(运动学解算 + /odom + TF)"]
+        MDC["mecanum_drive_controller<br/>(运动学解算 + 原始轮速里程计)"]
         JSB["joint_state_broadcaster<br/>(/joint_states)"]
         RI["ResourceManager<br/>(接口注册与仲裁)"]
+    end
+    subgraph "定位融合与 TF"
+        MPU["mpu6050_sensor<br/>(/imu/data_raw, frame_id=base_link)"]
+        EKF["ekf_filter_node_odom<br/>(robot_localization, use_ekf:=true)"]
+        FUSED["/odometry/filtered<br/>融合里程计"]
+        ODOMTF["/tf<br/>odom -> base_footprint"]
+        RSP["robot_state_publisher<br/>(/tf_static: base_footprint -> base_link)"]
+        STATICTF["/tf_static<br/>base_footprint -> base_link"]
     end
     subgraph "Web 适配层"
         WTA["web_telemetry_adapter<br/>(/web/telemetry/twist<br/>+ /web/telemetry/pose2d)"]
@@ -71,6 +80,7 @@ graph TD
     subgraph 物理层
         BOARD["4 路电机驱动板<br/>(板内 PID 闭环)"]
         MOTOR["MG310 电机 ×4<br/>(AB 相霍尔编码器)"]
+        IMUHW["MPU6050<br/>(I2C-1, 0x68)"]
     end
 
     ROSBRIDGE -->|"/mecanum_drive_controller/reference"| MDC
@@ -79,6 +89,11 @@ graph TD
     WEBUI -->|"WebSocket / Topic"| ROSBRIDGE
     TELEOP -->|"/mecanum_drive_controller/reference"| MDC
     MDC -->|"/mecanum_drive_controller/odometry"| WTA
+    MDC -->|"/mecanum_drive_controller/odometry"| EKF
+    MPU -->|"/imu/data_raw"| EKF
+    EKF --> FUSED
+    EKF --> ODOMTF
+    RSP --> STATICTF
     WTA -->|"/web/telemetry/*"| ROSBRIDGE
     CM --> MDC
     CM --> JSB
@@ -89,10 +104,14 @@ graph TD
     SERIAL -->|"$spd:...# / $MAll,$MTEP 上报"| BOARD
     BOARD -->|PWM| MOTOR
     MOTOR -->|编码器脉冲| BOARD
+    IMUHW -->|I2C| MPU
 ```
 
 - **mecanum_drive_controller**：订阅 `TwistStamped` 期望速度，按麦轮逆运动学拆成 4 个轮子的
-  `velocity` 命令；同时用轮速正运动学积分出 `/odom` 并发布 `odom → base_link` TF。
+  `velocity` 命令；同时用轮速正运动学积分出 `/mecanum_drive_controller/odometry` 原始里程计。控制器配置为 `enable_odom_tf=false`，不发布最终里程计动态 TF。
+- **robot_localization EKF**：`use_ekf:=true` 时启动 `ekf_filter_node_odom`，读取轮速里程计速度量与 `/imu/data_raw`，输出 `/odometry/filtered`，并发布唯一的 `odom -> base_footprint` 动态 TF。
+- **robot_state_publisher**：根据 URDF 发布静态 TF，其中 `base_footprint -> base_link` 把地面投影坐标系连接到车体坐标系；如需验证到 `base_link`，使用 `odom -> base_footprint -> base_link` 链路。
+- **MPU6050 IMU**：发布 `/imu/data_raw`，`frame_id` 为 `base_link`；芯片中心按机械安装等同 `base_link` 原点，右手系为 `+x` 前、`+y` 左、`+z` 上。
 - **joint_state_broadcaster**：把 8 个状态接口转发为 `/joint_states`。
 - **web_telemetry_adapter**：订阅 `/mecanum_drive_controller/odometry`，提取二维位姿与平面速度，发布 `/web/telemetry/twist` 和 `/web/telemetry/pose2d` 供 Web UI 订阅。
 - **rosbridge_server**：启动 WebSocket 服务（包含 `rosbridge_websocket_launch.xml`），默认监听端口 `9090`。Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，而是通过 `/web/telemetry/*` 消费轻量遥测数据。
@@ -100,7 +119,7 @@ graph TD
 - **motor_driver**：读——解析驱动板周期上报的编码器计数，换算 rad / rad/s；
   写——把 rad/s 命令换算为 mm/s 下发 `$spd` 指令。详见 [motor_driver/README.md](src/motor_driver/README.md)。
 - **mock 模式**（WSL2）：`<ros2_control>` 内换用 `mock_components/GenericSystem`，
-  命令值直接回环到状态值，无需串口即可全链路调试控制器与 TF。
+  命令值直接回环到状态值，无需串口即可调试控制器链路；`use_ekf` 默认 `false`，mock 启动不会默认拉起 IMU 或 EKF。
 
 ## 3. 目录结构
 
@@ -115,9 +134,10 @@ smart_car_robot/                     # 仓库根 = colcon 工作空间根
 │   ├── build.sh                     #   一键编译 + 生成 compile_commands.json
 │   ├── setup_clangd.sh              #   汇总各包编译数据库到仓库根
 │   └── README.md
-├── docs/                            # 硬件资料与协议总结
+├── docs/                            # 硬件资料、通信接口与协议总结
 │   ├── M310电机/
 │   ├── 电机驱动板/
+│   ├── ROS-Jazzy通信接口.md
 │   └── 协议总结.md
 └── src/                             # ROS 包源码目录
     ├── ros2_mpu6050/                #   MPU6050 IMU 驱动（源码纳入本仓库，非 submodule）
@@ -132,7 +152,7 @@ smart_car_robot/                     # 仓库根 = colcon 工作空间根
     │   └── package.xml
     └── smartcar_bringup/            #   模型 + 控制器配置 + 启动包
         ├── urdf/                    #     xacro（底盘 + 4 轮 + ros2_control 标签）
-        ├── config/                  #     controllers.yaml + xbox_teleop.yaml
+        ├── config/                  #     controllers.yaml + ekf_odom.yaml + xbox_teleop.yaml
         ├── launch/                  #     bringup launch（含 rosbridge_server 与 joy_teleop）
         ├── doc/                     #     验证手册
         ├── README.md
@@ -161,6 +181,7 @@ sudo apt install -y \
   ros-jazzy-ros2-controllers \
   ros-jazzy-xacro \
   ros-jazzy-robot-state-publisher \
+  ros-jazzy-robot-localization \
   ros-jazzy-rosbridge-server \
   ros-jazzy-joy \
   ros-jazzy-teleop-twist-joy \
@@ -248,10 +269,15 @@ source install/setup.bash
 # WSL2：mock 硬件启动（默认 use_mock_hardware:=true，含 WebSocket 端口 9090）
 ros2 launch smartcar_bringup smartcar.launch.py
 
-# 树莓派：实机启动（含电机栈 + MPU6050 → /imu/data_raw + WebSocket 端口 9090
-# + 默认启用摄像机推流 use_camera:=true）
+# 树莓派：实机启动（含电机栈 + MPU6050 → /imu/data_raw + WebSocket 端口 9090；
+# 不启 EKF，保留原始轮速里程计链路）
 ros2 launch smartcar_bringup smartcar.launch.py \
   use_mock_hardware:=false serial_port:=/dev/ttyUSB0
+
+# 树莓派：实机启动 + 里程计 / MPU6050 EKF 融合
+# 注意：use_ekf 默认 false，实车融合必须显式设置 use_ekf:=true
+ros2 launch smartcar_bringup smartcar.launch.py \
+  use_mock_hardware:=false serial_port:=/dev/ttyUSB0 use_ekf:=true
 
 # 树莓派：实机启动 + 一键启用 Xbox 手柄遥控（/dev/input/js0）
 ros2 launch smartcar_bringup smartcar.launch.py \
@@ -277,11 +303,15 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
   -r /cmd_vel:=/mecanum_drive_controller/reference
 ```
 
+启用 EKF 前，请让小车静止数秒，确认 MPU6050 偏置稳定后再开始运动测试。
+
 Web 遥测接口约定：
 
 - Web UI 速度遥测：`/web/telemetry/twist`（`geometry_msgs/msg/TwistStamped`）
 - Web UI 位姿遥测：`/web/telemetry/pose2d`（`geometry_msgs/msg/Pose2D`）
 - ROS 内部原始里程计：`/mecanum_drive_controller/odometry`（`nav_msgs/msg/Odometry`，保留给调试、录包与算法模块）
+- ROS 融合里程计：`/odometry/filtered`（`nav_msgs/msg/Odometry`，保留给定位、导航和调试，不作为 Web 遥测输入）
+- Web 遥测链路固定订阅原始 `/mecanum_drive_controller/odometry`，即使启用 EKF，也不要把 `web_telemetry_adapter` 切到 `/odometry/filtered`。
 - 这样拆分的原因是：树莓派实机上的 `rosbridge_websocket` 直接序列化原始 `Odometry`
   时可能报 `cannot serialize type <class 'nav_msgs.msg._odometry.Odometry'>`。因此 Web UI 必须改为订阅 `/web/telemetry/*`。
 
@@ -290,6 +320,13 @@ Web 遥测接口约定：
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
 | `use_mock_hardware` | `true` | WSL2 用 mock；树莓派实机设 `false` |
+| `serial_port` | `/dev/ttyUSB0` | 实机驱动板串口设备名 |
+| `baud_rate` | `115200` | 驱动板串口波特率 |
+| `use_ekf` | `false` | 是否启动 `ekf_filter_node_odom`；实车融合必须显式设为 `true`，mock 默认不启 |
+| `i2c_device` | `/dev/i2c-1` | MPU6050 I2C 总线设备 |
+| `i2c_address` | `0x68` | MPU6050 I2C 地址，AD0 接 GND 时为 `0x68` |
+| `use_joy` | `false` | 是否同时启动 Xbox 手柄遥控栈 |
+| `joy_dev` | `/dev/input/js0` | 手柄 Linux 设备节点路径 |
 | `use_camera` | `true` | 是否启用摄像机推流；**仅**在 `use_mock_hardware:=false` 且 `use_camera:=true` 时启动 |
 | `camera_device` | `/dev/video0` | UVC 设备路径 |
 | `camera_stream_port` | `8080` | MJPEG HTTP 推流端口 |
@@ -302,23 +339,48 @@ Web 遥测接口约定：
 
 树莓派额外依赖：
 
+- EKF：`sudo apt install -y ros-jazzy-robot-localization`
 - IMU：`sudo apt install -y libi2c-dev i2c-tools`（编译链接 `libi2c`，并用 `i2cdetect -y 1` 确认地址 `0x68`）
 - 摄像机：`sudo apt install -y ustreamer`
 
-完整验证命令（控制器状态、硬件接口、里程计方向、摄像机推流）请参考 [验证手册](src/smartcar_bringup/doc/验证手册.md) 。
+融合验证命令：
+
+```bash
+# 1. 安装依赖并重新编译相关包
+sudo apt install -y ros-jazzy-robot-localization libi2c-dev i2c-tools
+colcon build --symlink-install --packages-select ros2_mpu6050 smartcar_bringup
+source install/setup.bash
+
+# 2. 实机显式启用 EKF；验证时可先关闭摄像机减少干扰
+ros2 launch smartcar_bringup smartcar.launch.py \
+  use_mock_hardware:=false serial_port:=/dev/ttyUSB0 use_ekf:=true use_camera:=false
+
+# 3. 检查输入、输出和 TF 链路
+ros2 topic hz /imu/data_raw
+ros2 topic hz /mecanum_drive_controller/odometry
+ros2 topic hz /odometry/filtered
+ros2 topic info /odometry/filtered
+ros2 topic info /tf
+ros2 topic echo /odometry/filtered --once
+ros2 run tf2_ros tf2_echo odom base_footprint
+ros2 run tf2_ros tf2_echo odom base_link
+```
+
+`tf2_echo odom base_link` 的结果来自 `odom -> base_footprint -> base_link` 链路：前半段由 EKF 发布，后半段由 URDF 和 `robot_state_publisher` 静态发布。完整验证命令（控制器状态、硬件接口、里程计方向、摄像机推流）请参考 [验证手册](src/smartcar_bringup/doc/验证手册.md) 。
 
 ## 6. 后续路线图
 
 - [x] **任务 2**：`motor_driver` 硬件接口插件（串口协议实现 + 完整生命周期 + 故障容错）
 - [x] **任务 3**：`smartcar_bringup`（xacro 模型、controllers.yaml、launch、验证文档）
-- [x] WSL2 mock 验收：前进 / 横移 / 原地旋转的 `/odom` 方向验证
+- [x] WSL2 mock 验收：前进 / 横移 / 原地旋转的 `/mecanum_drive_controller/odometry` 方向验证
 - [ ] 树莓派实机联调：编码器倍频 K 标定、轮距实测回填
 - [x] 电机方向系数校准（2026-07-19：`direction_m2/m3=-1`）
 - [x] 电池电量：`$read_vol#` → `/battery_state`（`sensor_msgs/BatteryState`）
 - [x] 接入 WebSocket 桥接（`rosbridge_server` 端口 9090）与 Web 遥测适配层（`/web/telemetry/*`）
 - [x] 集成 Xbox 手柄遥控（`joy` + `teleop_twist_joy`）
 - [x] USB 摄像机 MJPEG 推流（单实例 `ustreamer` + `camera_ustreamer_ctl`，上位机 `MapCameraView` 已接入）
+- [x] 接入 MPU6050 与 `robot_localization` EKF，输出 `/odometry/filtered` 和 `odom -> base_footprint`
+- [ ] 树莓派实机动态验证 EKF：静止偏置、直行 / 横移 / 旋转方向、`/tf` 发布者唯一性
 - [ ] udev 规则固定串口别名（`/dev/smartcar_driver`）
-- [ ] 加入 IMU + `ekf`（robot_localization）融合里程计
 - [ ] 接入 Nav2 导航栈与 SLAM（slam_toolbox）
 - [ ] systemd 开机自启动 bringup

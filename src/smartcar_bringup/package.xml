@@ -28,6 +28,8 @@
   <exec_depend>motor_driver</exec_depend>
   <!-- 实机 IMU；mock 模式下 launch 条件跳过，仍声明依赖便于解析 -->
   <exec_depend>ros2_mpu6050</exec_depend>
+  <!-- 局部 EKF 融合轮速里程计与 MPU6050，发布 odom -> base_footprint -->
+  <exec_depend>robot_localization</exec_depend>
   <!-- 启动与遥控辅助 -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
@@ -42,6 +44,7 @@
 
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-yaml</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
