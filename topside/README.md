@@ -6,7 +6,7 @@
 [![ROS 2](https://img.shields.io/badge/ROS_2-Jazzy-orange.svg)](https://docs.ros.org/en/jazzy/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
-基于 **React 18 + Vite + Material Design 3 (MD3) + Three.js + Node.js** 的四轮麦克纳姆轮全向智能小车上位机控制与监控系统。支持通过 `rosbridge_websocket` (端口 `9090`) 远程连接树莓派 4B (`192.168.10.12`)，实现高频姿态遥测、电池电量精准估算、高德地图轨迹追踪、全向运动控制、指令调试控制台与历史数据持久化查询。
+基于 **React 18 + Vite + Material Design 3 (MD3) + Three.js + Node.js** 的四轮麦克纳姆轮全向智能小车上位机控制与监控系统。支持通过 `rosbridge_websocket` (端口 `9090`) 远程连接树莓派 4B (`192.168.10.17`)，实现高频姿态遥测、电池电量精准估算、高德地图轨迹追踪、全向运动控制、指令调试控制台与历史数据持久化查询。
 
 ---
 
@@ -47,7 +47,7 @@
 │                  - 自动监听 ROS 2 话题并持久化入库                              │
 │                  - 提供历史日志分页检索与统计 REST API                        │
 └─────────────────────────────────────┬───────────────────────────────────────┘
-                                      │ ws://192.168.10.12:9090
+                                      │ ws://192.168.10.17:9090
 ┌─────────────────────────────────────▼───────────────────────────────────────┐
 │              树莓派 4B (ROS 2 Jazzy + rosbridge_websocket)                  │
 │              + ustreamer MJPEG :8080 / quality ctl :8082                   │
@@ -97,7 +97,7 @@ topside/
 
 - **Node.js**: `>= 18.0.0` (推荐 Node.js v24)
 - **npm**: `>= 9.0.0`
-- **ROS 2 主机**: 树莓派 4B (`192.168.10.12`) 运行 ROS 2 Jazzy 并开启 `rosbridge_websocket` (端口 `9090`)
+- **ROS 2 主机**: 树莓派 4B (`192.168.10.17`) 运行 ROS 2 Jazzy 并开启 `rosbridge_websocket` (端口 `9090`)
 
 ### 安装依赖
 
@@ -135,10 +135,15 @@ npm run dev
 |---|---|---|---|---|
 | `/battery_state` | `sensor_msgs/msg/BatteryState` | UPLINK (上传) | ~1 Hz | 母线电压输入，用于 3S8P 电量估算 |
 | `/imu/data_raw` | `sensor_msgs/msg/Imu` | UPLINK (上传) | ~100 Hz | MPU6050 姿态角 (Roll, Pitch, Yaw) |
-| `/mecanum_drive_controller/odometry` | `nav_msgs/msg/Odometry` | UPLINK (上传) | ~50 Hz | 里程计线速度 $v_x, v_y$ 与位置坐标 $x, y$ |
+| `/web/telemetry/twist` | `geometry_msgs/msg/TwistStamped` | UPLINK (上传) | ~50 Hz | 轻量里程计线速度 $v_x, v_y$ 与角速度 $w_z$ |
+| `/web/telemetry/pose2d` | `geometry_msgs/msg/Pose2D` | UPLINK (上传) | ~50 Hz | 轻量二维里程计位置坐标 $x, y, \theta$ |
 | `/mecanum_drive_controller/reference` | `geometry_msgs/msg/TwistStamped` | DOWNLINK (下发) | 按需下发 | 上位机发起的麦轮全向控制运动指令 |
 
 ---
+
+上位机与后端日志服务只订阅上述轻量遥测话题，不直接订阅
+`/mecanum_drive_controller/odometry`。完整 `nav_msgs/msg/Odometry` 仅保留给
+ROS 内部调试与算法模块，避免树莓派上的 `rosbridge_websocket` 序列化异常。
 
 ## 摄像机 HTTP 流（旁路 ROS）
 
