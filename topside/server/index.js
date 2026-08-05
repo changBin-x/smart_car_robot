@@ -86,7 +86,7 @@ function connectRosBridge() {
         { topic: '/battery_state', type: 'sensor_msgs/msg/BatteryState' },
         { topic: '/imu/data_raw', type: 'sensor_msgs/msg/Imu' },
         { topic: '/web/telemetry/twist', type: 'geometry_msgs/msg/TwistStamped' },
-        { topic: '/web/telemetry/pose2d', type: 'geometry_msgs/msg/Pose2D' },
+        { topic: '/web/telemetry/pose', type: 'geometry_msgs/msg/PoseStamped' },
         { topic: '/mecanum_drive_controller/reference', type: 'geometry_msgs/msg/TwistStamped' },
         { topic: '/joint_states', type: 'sensor_msgs/msg/JointState' }
       ];
@@ -133,9 +133,9 @@ function connectRosBridge() {
             const ly = msg.msg?.twist?.linear?.y?.toFixed(2) || 0;
             const az = msg.msg?.twist?.angular?.z?.toFixed(2) || 0;
             summary = `Odom Twist: lx=${lx}, ly=${ly}, az=${az}`;
-          } else if (msg.topic === '/web/telemetry/pose2d') {
-            const px = msg.msg?.x?.toFixed(2) || 0;
-            const py = msg.msg?.y?.toFixed(2) || 0;
+          } else if (msg.topic === '/web/telemetry/pose') {
+            const px = msg.msg?.pose?.position?.x?.toFixed(2) || 0;
+            const py = msg.msg?.pose?.position?.y?.toFixed(2) || 0;
             summary = `Odom Position: x=${px}, y=${py}`;
           }
 

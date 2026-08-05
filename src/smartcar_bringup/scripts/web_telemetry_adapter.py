@@ -17,13 +17,13 @@ from typing import Any
 
 try:
     import rclpy
-    from geometry_msgs.msg import Pose2D
+    from geometry_msgs.msg import PoseStamped
     from geometry_msgs.msg import TwistStamped
     from nav_msgs.msg import Odometry
     from rclpy.node import Node
 except ImportError:
     rclpy = None
-    Pose2D = Any
+    PoseStamped = Any
     TwistStamped = Any
     Odometry = Any
 
@@ -108,8 +108,8 @@ class WebTelemetryAdapter(Node):
             10,
         )
         self.pose_publisher = self.create_publisher(
-            Pose2D,
-            "/web/telemetry/pose2d",
+            PoseStamped,
+            "/web/telemetry/pose",
             10,
         )
         self.subscription = self.create_subscription(
@@ -131,10 +131,12 @@ class WebTelemetryAdapter(Node):
             twist_message.twist.angular.z = telemetry["angular_z"]
             self.twist_publisher.publish(twist_message)
 
-            pose_message = Pose2D()
-            pose_message.x = telemetry["x"]
-            pose_message.y = telemetry["y"]
-            pose_message.theta = telemetry["yaw"]
+            pose_message = PoseStamped()
+            pose_message.header = copy(message.header)
+            pose_message.pose.position.x = telemetry["x"]
+            pose_message.pose.position.y = telemetry["y"]
+            pose_message.pose.orientation.z = math.sin(telemetry["yaw"] / 2.0)
+            pose_message.pose.orientation.w = math.cos(telemetry["yaw"] / 2.0)
             self.pose_publisher.publish(pose_message)
         except Exception as error:
             self.get_logger().error(

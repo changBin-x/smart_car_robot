@@ -25,6 +25,7 @@ launch 参数：
   use_ekf           (默认 false)：是否启动 odom 局部 EKF 融合节点
   i2c_device        (默认 /dev/i2c-1)：MPU6050 I2C 总线
   i2c_address       (默认 0x68)：MPU6050 I2C 地址
+  imu_calibration_file：MPU6050 实车标定参数覆盖文件
   use_joy           (默认 false)：是否同时启动 Xbox 手柄遥控栈
   joy_dev           (默认 /dev/input/js0)：手柄设备节点路径
   use_camera        (默认 true)：实机时是否启动摄像头推流控制器
@@ -68,6 +69,11 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     """生成四轮麦克纳姆小车控制栈与可选外设 launch 描述。"""
+    mpu6050_share = FindPackageShare("ros2_mpu6050")
+    default_imu_calibration_file = PathJoinSubstitution(
+        [mpu6050_share, "config", "calibration.yaml"]
+    )
+
     # ---------------- 可配置 launch 参数 ----------------
     declared_arguments = [
         DeclareLaunchArgument(
@@ -104,6 +110,11 @@ def generate_launch_description():
             "i2c_address",
             default_value="0x68",
             description="MPU6050 I2C 地址（AD0 接 GND=0x68）",
+        ),
+        DeclareLaunchArgument(
+            "imu_calibration_file",
+            default_value=default_imu_calibration_file,
+            description="MPU6050 标定参数 YAML；后加载并覆盖 params.yaml",
         ),
         DeclareLaunchArgument(
             "use_joy",
@@ -144,6 +155,7 @@ def generate_launch_description():
     use_ekf = LaunchConfiguration("use_ekf")
     i2c_device = LaunchConfiguration("i2c_device")
     i2c_address = LaunchConfiguration("i2c_address")
+    imu_calibration_file = LaunchConfiguration("imu_calibration_file")
     use_joy = LaunchConfiguration("use_joy")
     joy_dev = LaunchConfiguration("joy_dev")
     use_camera = LaunchConfiguration("use_camera")
@@ -153,7 +165,7 @@ def generate_launch_description():
 
     pkg_share = FindPackageShare("smartcar_bringup")
     mpu6050_params = PathJoinSubstitution(
-        [FindPackageShare("ros2_mpu6050"), "config", "params.yaml"]
+        [mpu6050_share, "config", "params.yaml"]
     )
     ekf_params = PathJoinSubstitution([pkg_share, "config", "ekf_odom.yaml"])
 
@@ -276,6 +288,7 @@ def generate_launch_description():
         condition=UnlessCondition(use_mock_hardware),
         parameters=[
             mpu6050_params,
+            imu_calibration_file,
             {
                 "i2c_device": i2c_device,
                 # YAML 会把 0x68 解析为整数，必须强制 string

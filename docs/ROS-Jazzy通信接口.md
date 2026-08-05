@@ -24,7 +24,7 @@ mecanum_drive_controller ──► /mecanum_drive_controller/odometry（原始�
         ├──────────────────────────────┐
         ▼                              │
   web_telemetry_adapter
-        │  geometry_msgs/TwistStamped + geometry_msgs/Pose2D
+        │  geometry_msgs/TwistStamped + geometry_msgs/PoseStamped
         ▼
 rosbridge_websocket / Web UI（轻量遥测订阅，端口 9090）
                                        │
@@ -80,7 +80,7 @@ controller_manager / MecanumSystemHardware (motor_driver)
 | `/ekf_filter_node_odom` | 节点 | `robot_localization` EKF 融合节点；显式 `use_ekf:=true` 时启动，输出 `/odometry/filtered` 与 `odom -> base_footprint` |
 | `/joy_node` | 节点 | Linux 游戏手柄接入驱动（`joy` 包），发布 `/joy` |
 | `/teleop_twist_joy_node` | 节点 | 手柄遥控转换节点（`teleop_twist_joy` 包），解析 `/joy` 转为 `TwistStamped` |
-| `/web_telemetry_adapter` | 节点 | 订阅 `/mecanum_drive_controller/odometry`，发布 `/web/telemetry/twist` 与 `/web/telemetry/pose2d` 供 Web 侧消费 |
+| `/web_telemetry_adapter` | 节点 | 订阅 `/mecanum_drive_controller/odometry`，发布 `/web/telemetry/twist` 与 `/web/telemetry/pose` 供 Web 侧消费 |
 | `/rosbridge_websocket` | 节点 | WebSocket 通信桥接服务（端口 `9090`，`rosbridge_server` 包），供 Web 上层下发控制并订阅轻量遥测接口 |
 | ros-mcp-server / teleop | 外部 | 向 `/mecanum_drive_controller/reference` 下发速度指令 |
 
@@ -97,7 +97,7 @@ controller_manager / MecanumSystemHardware (motor_driver)
 | `/imu/data_raw` | `sensor_msgs/msg/Imu` | 发布 | ~100 Hz | `mpu6050_sensor` | MPU6050 原始 IMU 数据；`frame_id=base_link`，作为 EKF 的 `imu0` 输入 |
 | `/odometry/filtered` | `nav_msgs/msg/Odometry` | 发布 | ~30 Hz | `ekf_filter_node_odom` | 轮速里程计与 MPU6050 融合后的局部里程计输出；仅在 `use_ekf:=true` 时存在 |
 | `/web/telemetry/twist` | `geometry_msgs/msg/TwistStamped` | 发布 | ~50 Hz | `web_telemetry_adapter` | 供 `rosbridge` / Web UI 订阅的轻量速度遥测接口，字段对应底盘平面线速度与角速度 |
-| `/web/telemetry/pose2d` | `geometry_msgs/msg/Pose2D` | 发布 | ~50 Hz | `web_telemetry_adapter` | 供 `rosbridge` / Web UI 订阅的轻量二维位姿接口，仅保留 `x`、`y`、`theta` |
+| `/web/telemetry/pose` | `geometry_msgs/msg/PoseStamped` | 发布 | ~50 Hz | `web_telemetry_adapter` | 供 `rosbridge` / Web UI 订阅的轻量二维位姿接口；保留 `header`、`pose.position.x/y` 和由平面偏航转换得到的四元数 |
 | `/mecanum_drive_controller/controller_state` | `control_msgs/msg/MecanumDriveControllerState` | 发布 | ~50 Hz | `mecanum_drive_controller` | 控制器内部状态（含各轮速度） |
 | `/joint_states` | `sensor_msgs/msg/JointState` | 发布 | ~50 Hz | `joint_state_broadcaster` | 四轮 `position` / `velocity` |
 | `/dynamic_joint_states` | `control_msgs/msg/DynamicJointState` | 发布 | ~50 Hz | `joint_state_broadcaster` | 动态关节状态（含全部状态接口） |
@@ -113,10 +113,10 @@ controller_manager / MecanumSystemHardware (motor_driver)
 > Web 遥测说明：`/mecanum_drive_controller/odometry` 继续保留给 ROS 内部调试、
 > 记录、Web 遥测适配器与算法模块使用。即使启用 EKF，`web_telemetry_adapter`
 > 仍订阅原始 `/mecanum_drive_controller/odometry`，不切换到 `/odometry/filtered`。
-> Web UI 不再通过 `rosbridge` 直接订阅原始 `Odometry`，而是改为订阅
-> `/web/telemetry/twist` 与 `/web/telemetry/pose2d`。这样可以规避
-> 树莓派实机上 `rosbridge_websocket` 直接序列化 `nav_msgs/msg/Odometry` 时出现的
-> `cannot serialize type <class 'nav_msgs.msg._odometry.Odometry'>` 异常。
+> Web UI 不通过 `rosbridge` 直接订阅原始 `Odometry`，而是订阅
+> `/web/telemetry/twist`（`TwistStamped`）与 `/web/telemetry/pose`（`PoseStamped`）。
+> 适配后的两种消息均可被 `rosbridge_websocket` 序列化，从而消除原始 `Odometry` 与旧版
+> `Pose2D` 的序列化异常。
 
 ### 2.1 TF 所有权
 
@@ -358,8 +358,9 @@ ros2 control list_hardware_interfaces
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-05 | Web 位姿遥测由 `/web/telemetry/pose2d`（`Pose2D`）迁移为 `/web/telemetry/pose`（`PoseStamped`），保留时间戳和坐标系，避免 `rosbridge_websocket` 序列化异常 |
 | 2026-08-04 | 补充 `robot_localization` EKF 融合链路：`/mecanum_drive_controller/odometry` 与 `/imu/data_raw` 输入，`/odometry/filtered` 输出，明确 `odom -> base_footprint` 由 EKF 发布、`base_footprint -> base_link` 由 URDF 静态连接 |
-| 2026-08-04 | 新增 `web_telemetry_adapter` 节点说明；补充 `/web/telemetry/twist` 与 `/web/telemetry/pose2d` 两个轻量遥测话题；明确 Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，以规避 `rosbridge` 序列化 `Odometry` 异常 |
+| 2026-08-04 | 新增 `web_telemetry_adapter` 节点说明；补充 `/web/telemetry/twist` 与轻量位姿遥测话题；明确 Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，以规避 `rosbridge` 序列化 `Odometry` 异常 |
 | 2026-07-23 | 全面重构通信接口说明：补充 `joy_node` 与 `teleop_twist_joy_node` 节点拓扑及 `/joy` 话题表；补充 `/rosbridge_websocket` 服务节点（端口 `9090`）；新增 §5 Xbox 手柄遥控接口章；更新底层麦轮运动学几何参数与投影和数值；按 `/chinese-documentation` 规范化排版 |
 | 2026-07-21 | MPU6050 改为源码纳入；节点读取 `i2c_*` 参数；`smartcar.launch.py` 实机启 IMU |
 | 2026-07-21 | 新增 MPU6050 IMU 接口说明（§6） |

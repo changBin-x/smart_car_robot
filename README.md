@@ -70,7 +70,7 @@ graph TD
         STATICTF["/tf_static<br/>base_footprint -> base_link"]
     end
     subgraph "Web 适配层"
-        WTA["web_telemetry_adapter<br/>(/web/telemetry/twist<br/>+ /web/telemetry/pose2d)"]
+        WTA["web_telemetry_adapter<br/>(/web/telemetry/twist<br/>+ /web/telemetry/pose)"]
     end
     subgraph "硬件抽象层 (motor_driver 包)"
         HW["MecanumSystemHardware :<br/>hardware_interface::SystemInterface"]
@@ -113,7 +113,7 @@ graph TD
 - **robot_state_publisher**：根据 URDF 发布静态 TF，其中 `base_footprint -> base_link` 把地面投影坐标系连接到车体坐标系；如需验证到 `base_link`，使用 `odom -> base_footprint -> base_link` 链路。
 - **MPU6050 IMU**：发布 `/imu/data_raw`，`frame_id` 为 `base_link`；芯片中心按机械安装等同 `base_link` 原点，右手系为 `+x` 前、`+y` 左、`+z` 上。
 - **joint_state_broadcaster**：把 8 个状态接口转发为 `/joint_states`。
-- **web_telemetry_adapter**：订阅 `/mecanum_drive_controller/odometry`，提取二维位姿与平面速度，发布 `/web/telemetry/twist` 和 `/web/telemetry/pose2d` 供 Web UI 订阅。
+- **web_telemetry_adapter**：订阅 `/mecanum_drive_controller/odometry`，提取平面速度与二维位姿，发布 `/web/telemetry/twist` 和 `/web/telemetry/pose` 供 Web UI 订阅。位姿消息使用保留时间戳和坐标系的 `geometry_msgs/msg/PoseStamped`。
 - **rosbridge_server**：启动 WebSocket 服务（包含 `rosbridge_websocket_launch.xml`），默认监听端口 `9090`。Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，而是通过 `/web/telemetry/*` 消费轻量遥测数据。
 - **Xbox 手柄遥控**：启动 `joy_node` 接入 `/dev/input/js0` 设备，由 `teleop_twist_joy_node` 转换左摇杆上下（前后移动）、左摇杆左右（转弯）与右摇杆左右（左右平移）为 `TwistStamped`。
 - **motor_driver**：读——解析驱动板周期上报的编码器计数，换算 rad / rad/s；
@@ -308,12 +308,13 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 Web 遥测接口约定：
 
 - Web UI 速度遥测：`/web/telemetry/twist`（`geometry_msgs/msg/TwistStamped`）
-- Web UI 位姿遥测：`/web/telemetry/pose2d`（`geometry_msgs/msg/Pose2D`）
+- Web UI 位姿遥测：`/web/telemetry/pose`（`geometry_msgs/msg/PoseStamped`；只使用 `pose.position.x/y` 和平面偏航四元数）
 - ROS 内部原始里程计：`/mecanum_drive_controller/odometry`（`nav_msgs/msg/Odometry`，保留给调试、录包与算法模块）
 - ROS 融合里程计：`/odometry/filtered`（`nav_msgs/msg/Odometry`，保留给定位、导航和调试，不作为 Web 遥测输入）
 - Web 遥测链路固定订阅原始 `/mecanum_drive_controller/odometry`，即使启用 EKF，也不要把 `web_telemetry_adapter` 切到 `/odometry/filtered`。
 - 这样拆分的原因是：树莓派实机上的 `rosbridge_websocket` 直接序列化原始 `Odometry`
-  时可能报 `cannot serialize type <class 'nav_msgs.msg._odometry.Odometry'>`。因此 Web UI 必须改为订阅 `/web/telemetry/*`。
+  或旧版 `Pose2D` 时可能报 `cannot serialize type ...`。因此 Web UI 必须只订阅适配器发布的
+  `TwistStamped` 与 `PoseStamped`。
 
 常用 launch 参数：
 

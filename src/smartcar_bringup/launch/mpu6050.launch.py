@@ -12,6 +12,7 @@ Description: 启动 MPU6050 IMU 传感器驱动节点
 launch 参数：
   i2c_device (默认 /dev/i2c-1)：I2C 总线设备路径
   i2c_address (默认 0x68)：MPU6050 I2C 设备地址
+  imu_calibration_file：后加载并覆盖基础参数的实车标定文件
 
 用法：
   ros2 launch smartcar_bringup mpu6050.launch.py
@@ -28,6 +29,10 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     # 声明 launch 参数
+    mpu6050_share = FindPackageShare("ros2_mpu6050")
+    default_imu_calibration_file = PathJoinSubstitution(
+        [mpu6050_share, "config", "calibration.yaml"]
+    )
     i2c_device_arg = DeclareLaunchArgument(
         "i2c_device",
         default_value="/dev/i2c-1",
@@ -38,9 +43,14 @@ def generate_launch_description():
         default_value="0x68",
         description="MPU6050 I2C 设备地址（AD0 接低电平=0x68，接高电平=0x69）",
     )
+    imu_calibration_file_arg = DeclareLaunchArgument(
+        "imu_calibration_file",
+        default_value=default_imu_calibration_file,
+        description="MPU6050 标定参数 YAML；后加载并覆盖 params.yaml",
+    )
 
     mpu6050_params = PathJoinSubstitution(
-        [FindPackageShare("ros2_mpu6050"), "config", "params.yaml"]
+        [mpu6050_share, "config", "params.yaml"]
     )
 
     # MPU6050 驱动节点
@@ -53,6 +63,7 @@ def generate_launch_description():
         emulate_tty=True,
         parameters=[
             mpu6050_params,
+            LaunchConfiguration("imu_calibration_file"),
             {
                 "i2c_device": LaunchConfiguration("i2c_device"),
                 "i2c_address": ParameterValue(
@@ -69,6 +80,7 @@ def generate_launch_description():
         [
             i2c_device_arg,
             i2c_address_arg,
+            imu_calibration_file_arg,
             mpu6050_node,
         ]
     )

@@ -1,0 +1,18 @@
+# 当前实车 MPU6050 静态标定结果（2026-08-05）。
+#
+# 标定前提：传感器安装在 base_link 原点，右手系为 +x 前、+y 左、+z 上，
+# 车辆静止且车体水平。该文件在 launch 中后加载，会覆盖 params.yaml 的通用默认值。
+#
+# 加速度计发布的是比力：静止水平时 z 轴应保留约 +9.80665 m/s^2，
+# 所以 accel_z_offset = 静态测量均值 - 9.80665，不能直接填静态测量均值。
+mpu6050_sensor:
+  ros__parameters:
+    # 陀螺仪零偏，单位 deg/s；驱动在发布前转换为 rad/s。
+    gyro_x_offset: -1.58583
+    gyro_y_offset: -2.88072
+    gyro_z_offset: 1.77327
+
+    # 加速度计零偏，单位 m/s^2。
+    accel_x_offset: 1.17529
+    accel_y_offset: 0.0107632
+    accel_z_offset: 1.77605

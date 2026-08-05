@@ -125,30 +125,32 @@ ekf_filter_node_odom:
     # =========================
     #
     # imu0 是 MPU6050 驱动发布的原始 IMU 数据。
-    # 当前融合目标是用 IMU 改善短期角速度和加速度估计，而不是提供
+    # 当前融合目标是用 IMU 改善短期偏航角速度估计，而不是提供
     # 绝对航向。MPU6050 没有磁力计，单靠陀螺仪无法长期给出不漂移的 yaw。
     imu0: /imu/data_raw
 
     # 当前只打开：
-    # - vroll、vpitch、vyaw：三轴角速度。
-    # - ax、ay：车体平面内线加速度。
+    # - vyaw：绕 z 轴的角速度，用于约束轮速里程计的短期转向误差。
     #
     # 当前关闭：
     # - roll、pitch、yaw：不融合 IMU 姿态，避免把原始 IMU 姿态当成
     #   可靠绝对姿态。
-    # - az：2D 小车不使用竖直加速度；地面振动会让 az 噪声很大。
+    # - vroll、vpitch：2D 小车不估计滚转和俯仰角速度。
+    # - ax、ay、az：本驱动明确声明 orientation_covariance[0] = -1，
+    #   即消息没有可用姿态。没有姿态就无法把重力从传感器坐标系中分离，
+    #   将原始加速度接入 EKF 会把静止时的零偏或倾斜误认为车辆加速。
     #
     # 调参入口：
-    # - 静止时 `/odometry/filtered` 仍缓慢爬行：先增大 IMU 加速度协方差，
-    #   或临时关闭 ax、ay 验证是否由加速度噪声引起。
+    # - 静止时 `/odometry/filtered` 仍缓慢转向：先重新做陀螺仪静态标定，
+    #   再检查 gyro_z_offset 是否已经由 calibration.yaml 覆盖加载。
     # - 转向响应慢：先确认 IMU 角速度单位是 rad/s，再适当减小角速度协方差。
     # - yaw 长时间漂移：这是陀螺积分的物理限制，应引入外部航向约束，
     #   不应单靠降低 IMU 协方差掩盖问题。
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,
-                  true, true, true,
-                  true, true, false]
+                  false, false, true,
+                  false, false, false]
 
     # imu0_differential=false 表示不对 IMU 输入做差分。
     # 角速度和线加速度本身已经是变化率；再次差分会放大噪声。
@@ -158,13 +160,10 @@ ekf_filter_node_odom:
     # 当前没有融合姿态项，保持 false 可以避免未来误开姿态项时引入隐式零点。
     imu0_relative: false
 
-    # remove_gravitational_acceleration=true 表示希望滤除重力加速度。
-    # 注意：只有当 IMU 消息提供可用姿态时，重力扣除才有完整物理依据。
-    # 若实车静止时滤波输出出现持续线速度漂移，应优先检查：
-    # 1. `/imu/data_raw` 的 orientation_covariance 是否表示姿态可用。
-    # 2. IMU 安装方向是否仍是 +x 前、+y 左、+z 上。
-    # 3. 是否需要临时关闭 ax、ay 或调大 IMU 加速度协方差。
-    imu0_remove_gravitational_acceleration: true
+    # 当前没有融合任何加速度，因此必须保持 false。即使将来要打开 ax、ay，
+    # 也要先接入可用的姿态解算（例如互补滤波或姿态 AHRS），再设为 true；
+    # 否则 EKF 无法确定重力在 IMU 坐标系中的投影。
+    imu0_remove_gravitational_acceleration: false
 
     # IMU 发布频率通常高于轮速 odom，队列略大可以吸收短时调度抖动。
     # 如果 CPU 占用高或输出延迟增大，不要盲目调大队列，先降低传感器频率。

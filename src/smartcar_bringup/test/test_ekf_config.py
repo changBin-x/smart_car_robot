@@ -60,8 +60,9 @@ def test_ekf_variable_masks_match_sensor_capabilities() -> None:
     assert parameters["odom0_config"][6:9] == [True, True, False]
     assert parameters["odom0_config"][9:12] == [False, False, True]
     assert parameters["imu0_config"][3:6] == [False, False, False]
-    assert parameters["imu0_config"][9:12] == [True, True, True]
-    assert parameters["imu0_config"][12:15] == [True, True, False]
+    assert parameters["imu0_config"][9:12] == [False, False, True]
+    assert parameters["imu0_config"][12:15] == [False, False, False]
+    assert parameters["imu0_remove_gravitational_acceleration"] is False
     assert parameters["two_d_mode"] is True
     assert parameters["publish_tf"] is True
 
@@ -144,6 +145,15 @@ def test_web_telemetry_keeps_raw_odometry_as_input() -> None:
 
     assert "/mecanum_drive_controller/odometry" in adapter_text
     assert "/odometry/filtered" not in adapter_text
+
+
+def test_web_telemetry_uses_stamped_pose_message() -> None:
+    """Web 遥测位姿必须使用 rosbridge 实机可序列化的带 Header 消息。"""
+    adapter_text = WEB_ADAPTER.read_text(encoding="utf-8")
+
+    assert "from geometry_msgs.msg import PoseStamped" in adapter_text
+    assert "Pose2D" not in adapter_text
+    assert '"/web/telemetry/pose"' in adapter_text
 
 
 def test_urdf_has_static_base_footprint_to_base_link_joint() -> None:

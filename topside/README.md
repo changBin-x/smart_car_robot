@@ -136,7 +136,7 @@ npm run dev
 | `/battery_state` | `sensor_msgs/msg/BatteryState` | UPLINK (上传) | ~1 Hz | 母线电压输入，用于 3S8P 电量估算 |
 | `/imu/data_raw` | `sensor_msgs/msg/Imu` | UPLINK (上传) | ~100 Hz | MPU6050 姿态角 (Roll, Pitch, Yaw) |
 | `/web/telemetry/twist` | `geometry_msgs/msg/TwistStamped` | UPLINK (上传) | ~50 Hz | 轻量里程计线速度 $v_x, v_y$ 与角速度 $w_z$ |
-| `/web/telemetry/pose2d` | `geometry_msgs/msg/Pose2D` | UPLINK (上传) | ~50 Hz | 轻量二维里程计位置坐标 $x, y, \theta$ |
+| `/web/telemetry/pose` | `geometry_msgs/msg/PoseStamped` | UPLINK (上传) | ~50 Hz | 轻量二维里程计位姿：`pose.position.x/y` 与由偏航角转换的四元数 |
 | `/mecanum_drive_controller/reference` | `geometry_msgs/msg/TwistStamped` | DOWNLINK (下发) | 按需下发 | 上位机发起的麦轮全向控制运动指令 |
 
 ---

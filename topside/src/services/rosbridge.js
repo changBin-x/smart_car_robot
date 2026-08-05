@@ -38,7 +38,7 @@ class RosService {
       // 缓存最新的 Web 遥测消息，不再缓存完整 Odometry。
       rawOdom: {
         twist: null,
-        pose2d: null
+        pose: null
       }
     };
   }
@@ -164,21 +164,21 @@ class RosService {
       this.notifyListeners({ type: 'TOPIC_MSG', topic: '/web/telemetry/twist', message, direction: 'UPLINK' });
     });
 
-    this.topics.telemetryPose2d = new ROSLIB.Topic({
+    this.topics.telemetryPose = new ROSLIB.Topic({
       ros: this.ros,
-      name: '/web/telemetry/pose2d',
-      messageType: 'geometry_msgs/msg/Pose2D'
+      name: '/web/telemetry/pose',
+      messageType: 'geometry_msgs/msg/PoseStamped'
     });
 
-    this.topics.telemetryPose2d.subscribe((message) => {
+    this.topics.telemetryPose.subscribe((message) => {
       this.telemetry.rawOdom = {
         ...this.telemetry.rawOdom,
-        pose2d: message || null
+        pose: message || null
       };
-      this.telemetry.odomX = nestedNumber(message, 'x');
-      this.telemetry.odomY = nestedNumber(message, 'y');
+      this.telemetry.odomX = nestedNumber(message, 'pose', 'position', 'x');
+      this.telemetry.odomY = nestedNumber(message, 'pose', 'position', 'y');
       this.notifyListeners({ type: 'TELEMETRY_UPDATE', telemetry: this.telemetry });
-      this.notifyListeners({ type: 'TOPIC_MSG', topic: '/web/telemetry/pose2d', message, direction: 'UPLINK' });
+      this.notifyListeners({ type: 'TOPIC_MSG', topic: '/web/telemetry/pose', message, direction: 'UPLINK' });
     });
 
     // 4. Reference Command Publisher & Subscriber
