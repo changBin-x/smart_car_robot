@@ -14,6 +14,7 @@
      ============================================================ -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+  <!-- 驱动板按四倍边沿计数上报；2026-08-06 地面实测校准为 K=4。 -->
   <xacro:macro name="smartcar_ros2_control"
                params="name
                        use_mock_hardware:=true
@@ -22,7 +23,7 @@
                        wheel_radius:=0.03
                        encoder_lines:=13
                        gear_ratio:=20
-                       count_multiplier:=1
+                       count_multiplier:=4
                        deadzone:=1300
                        read_timeout_ms:=15
                        write_timeout_ms:=15

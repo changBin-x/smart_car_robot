@@ -290,6 +290,11 @@ WSL2 mock 模式默认不启动 EKF，也不启动实机 MPU6050。
 EKF 以 `two_d_mode=true` 约束地面机器人，只估计平面运动。由于 MPU6050 没有磁力计，
 yaw 仍可能长期漂移；融合的意义是降低轮速里程计在旋转和短时打滑时的噪声，不是获得绝对航向。
 
+`/odometry/filtered` 中的 `pose.pose.position.x/y` 始终属于 `odom` 全局坐标。
+如果车辆开始测试时已经有非零 yaw，车辆沿自身 x 轴直行也会在 `odom.y` 中产生投影。
+比较卷尺横向位移时，应先调用 `/set_pose` 将 EKF 的 x、y、yaw 归零，或把 odom 增量
+按测试开始时的 yaw 旋回车体坐标系；不能直接把 `odom.y` 增量当作车体横移距离。
+
 ### 7.2 启动与验证命令
 
 ```bash
@@ -333,6 +338,7 @@ ros2 run tf2_ros tf2_echo odom base_link
 | `/controller_manager/list_controllers` | `controller_manager_msgs/srv/ListControllers` | 查看控制器状态 |
 | `/controller_manager/list_hardware_interfaces` | `controller_manager_msgs/srv/ListHardwareInterfaces` | 查看硬件接口认领情况 |
 | `/controller_manager/switch_controller` | `controller_manager_msgs/srv/SwitchController` | 启停控制器 |
+| `/set_pose` | `robot_localization/srv/SetPose` | 车辆静止时将 EKF 的局部 x、y、yaw 设为测试零点 |
 
 CLI 等价命令：
 
@@ -360,6 +366,7 @@ ros2 control list_hardware_interfaces
 |---|---|
 | 2026-08-05 | Web 位姿遥测由 `/web/telemetry/pose2d`（`Pose2D`）迁移为 `/web/telemetry/pose`（`PoseStamped`），保留时间戳和坐标系，避免 `rosbridge_websocket` 序列化异常 |
 | 2026-08-04 | 补充 `robot_localization` EKF 融合链路：`/mecanum_drive_controller/odometry` 与 `/imu/data_raw` 输入，`/odometry/filtered` 输出，明确 `odom -> base_footprint` 由 EKF 发布、`base_footprint -> base_link` 由 URDF 静态连接 |
+| 2026-08-06 | 补充地面直行定位验证：记录 `count_multiplier=4` 的实测尺度误差，并说明 `odom.y` 必须结合起始 yaw 换算，增加 EKF `/set_pose` 归零服务 |
 | 2026-08-04 | 新增 `web_telemetry_adapter` 节点说明；补充 `/web/telemetry/twist` 与轻量位姿遥测话题；明确 Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，以规避 `rosbridge` 序列化 `Odometry` 异常 |
 | 2026-07-23 | 全面重构通信接口说明：补充 `joy_node` 与 `teleop_twist_joy_node` 节点拓扑及 `/joy` 话题表；补充 `/rosbridge_websocket` 服务节点（端口 `9090`）；新增 §5 Xbox 手柄遥控接口章；更新底层麦轮运动学几何参数与投影和数值；按 `/chinese-documentation` 规范化排版 |
 | 2026-07-21 | MPU6050 改为源码纳入；节点读取 `i2c_*` 参数；`smartcar.launch.py` 实机启 IMU |

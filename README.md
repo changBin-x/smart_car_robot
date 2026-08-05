@@ -374,13 +374,14 @@ ros2 run tf2_ros tf2_echo odom base_link
 - [x] **任务 2**：`motor_driver` 硬件接口插件（串口协议实现 + 完整生命周期 + 故障容错）
 - [x] **任务 3**：`smartcar_bringup`（xacro 模型、controllers.yaml、launch、验证文档）
 - [x] WSL2 mock 验收：前进 / 横移 / 原地旋转的 `/mecanum_drive_controller/odometry` 方向验证
-- [ ] 树莓派实机联调：编码器倍频 K 标定、轮距实测回填
+- [x] 树莓派实机编码器倍频标定：地面直行实测确定 `count_multiplier=4`
 - [x] 电机方向系数校准（2026-07-19：`direction_m2/m3=-1`）
 - [x] 电池电量：`$read_vol#` → `/battery_state`（`sensor_msgs/BatteryState`）
 - [x] 接入 WebSocket 桥接（`rosbridge_server` 端口 9090）与 Web 遥测适配层（`/web/telemetry/*`）
 - [x] 集成 Xbox 手柄遥控（`joy` + `teleop_twist_joy`）
 - [x] USB 摄像机 MJPEG 推流（单实例 `ustreamer` + `camera_ustreamer_ctl`，上位机 `MapCameraView` 已接入）
 - [x] 接入 MPU6050 与 `robot_localization` EKF，输出 `/odometry/filtered` 和 `odom -> base_footprint`
+- [x] 树莓派地面直行 EKF 验证：编码器纵向误差约 `2.5%`，确认 `odom.y` 需按起始航向换算
 - [ ] 树莓派实机动态验证 EKF：静止偏置、直行 / 横移 / 旋转方向、`/tf` 发布者唯一性
 - [ ] udev 规则固定串口别名（`/dev/smartcar_driver`）
 - [ ] 接入 Nav2 导航栈与 SLAM（slam_toolbox）

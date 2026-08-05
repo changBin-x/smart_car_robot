@@ -131,7 +131,7 @@ private:
   int motor_type_ = 2;           // 2 = 310 电机（协议总结 §3.1）
   int encoder_lines_ = 13;       // 编码器基础线数 L
   int gear_ratio_ = 20;          // 减速比 G（已确认定为 20）
-  int count_multiplier_ = 1;     // 计数倍频 K（1/2/4，实机标定）
+  int count_multiplier_ = 4;     // 计数倍频 K（实机标定为四倍边沿计数）
   int deadzone_ = 1300;          // PWM 死区（310 电机例程值）
   double wheel_radius_m_ = 0.03; // 轮半径 r（默认 60mm 直径）
   int read_timeout_ms_ = 15;  // 单次 read() 串口等待上限（≤20ms）
@@ -143,7 +143,7 @@ private:
   std::array<double, protocol::kMotorCount> direction_ = {1.0, 1.0, 1.0, 1.0};
 
   // 输出轴每转编码器计数 CPR = L × G × K，on_init 时算好。
-  double counts_per_rev_ = 260.0;
+  double counts_per_rev_ = 1040.0;
 
   // ---- 状态/命令存储（导出给 ros2_control 的内存） ----
   // 数组下标固定按"驱动板电机编号"排序：0=M1 右前, 1=M2 左前,

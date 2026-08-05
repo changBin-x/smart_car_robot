@@ -50,7 +50,7 @@ SerialPort              ← termios 串口读写，带超时不阻塞（serial_p
 | motor_type | int | 2 | 电机类型码（2 = MG310） |
 | encoder_lines | int | 13 | 编码器基础线数 L |
 | gear_ratio | int | 20 | 减速比 G |
-| count_multiplier | int | 1 | 编码器倍频系数 K（1/2/4，实机标定） |
+| count_multiplier | int | 4 | 编码器倍频系数 K；本车实测为四倍边沿计数 |
 | deadzone | int | 1300 | PWM 死区 |
 | wheel_radius | double | 0.03 | 轮半径，单位 m |
 | read_timeout_ms | int | 15 | 单次 `read()` 串口等待上限，≤ 20 ms |
