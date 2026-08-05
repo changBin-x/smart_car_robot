@@ -1,36 +1,171 @@
 ekf_filter_node_odom:
   ros__parameters:
+    # =========================
+    # 1. 滤波器运行节奏
+    # =========================
+    #
+    # 本文件配置 robot_localization 的 ekf_node，用于把轮速里程计
+    # 和 MPU6050 的 IMU 数据融合为 `/odometry/filtered`。
+    #
+    # 调参原则：
+    # - 先保证输入坐标系、单位、时间戳正确，再调数值。
+    # - 先只改 1 个参数，记录现象，再继续改下一个参数。
+    # - EKF 不会凭空制造精度；它只能根据各输入的协方差和频率做取舍。
+    #
+    # frequency 表示 EKF 输出频率，单位是 Hz。
+    # 调大：输出更顺滑、延迟更低，但 CPU 占用更高。
+    # 调小：CPU 更轻，但遥控和建图看到的位置更新会更慢。
+    # 树莓派 4B 上通常从 30.0 开始；若 CPU 紧张，可尝试 20.0。
     frequency: 30.0
+
+    # sensor_timeout 表示传感器多久没有新数据就被认为暂时掉线，
+    # 单位是秒。它必须大于传感器正常发布周期，并留出少量抖动余量。
+    #
+    # 例：IMU 约 50 Hz，周期约 0.02 s；轮速 odom 约 50 Hz，
+    # 0.2 s 等价于允许连续约 10 帧丢失。
+    #
+    # 现象对照：
+    # - 频繁诊断超时：适当调大，例如 0.3。
+    # - 传感器断线后很久才发现：适当调小，例如 0.1。
     sensor_timeout: 0.2
+
+    # two_d_mode=true 表示只估计平面小车需要的 2D 状态。
+    # 这会抑制 z、roll、pitch 方向的漂移，适合当前地面小车。
+    # 如果以后车辆要上坡、飞行或做三维定位，不能继续使用 true。
     two_d_mode: true
+
+    # publish_tf=true 表示 EKF 发布动态 TF：`odom -> base_footprint`。
+    # 本项目已经关闭底盘控制器的 odom TF，避免同一条 TF 被两个节点发布。
+    # 如果这里改成 false，RViz 和导航将看不到连续的 odom 位姿链路。
     publish_tf: true
+
+    # publish_acceleration=false 表示输出 odometry 时不额外发布滤波后的加速度。
+    # 当前上层只需要位姿和速度，关闭它可以减少无用输出。
     publish_acceleration: false
+
+    # print_diagnostics=true 会在 `/diagnostics` 中输出传感器超时、
+    # 协方差异常等信息。实车调参阶段建议保持开启。
     print_diagnostics: true
 
+    # =========================
+    # 2. 坐标系约定
+    # =========================
+    #
+    # 当前 TF 责任边界：
+    # - EKF 发布：`odom -> base_footprint`
+    # - robot_state_publisher 发布：`base_footprint -> base_link`
+    #
+    # MPU6050 芯片中心被视为 `base_link` 原点；安装方向是右手系：
+    # +x 向前、+y 向左、+z 向上。若硬件安装方向改变，应优先修正
+    # IMU 驱动或 URDF 的坐标变换，不要在 EKF 里用错误数据硬调。
+    #
+    # map_frame 当前保留给未来 SLAM / Nav2 使用；本 EKF 不发布 map。
     map_frame: map
+
+    # odom_frame 是短期连续坐标系。它允许随时间缓慢漂移，但不能跳变。
     odom_frame: odom
+
+    # base_link_frame 设为 base_footprint，是因为 2D 底盘定位通常使用
+    # 贴地投影点作为运动基准；base_link 再由固定 TF 表示机体中心。
     base_link_frame: base_footprint
+
+    # world_frame=odom 表示本 EKF 工作在局部里程计坐标系下。
+    # 没有接入 SLAM / GPS 全局定位前，不要改成 map。
     world_frame: odom
 
-    # 轮速里程计的 pose 由同一组轮速积分得到。EKF 只融合速度量，
-    # 避免同一传感器来源的派生量被重复计权。
+    # =========================
+    # 3. 轮速里程计输入
+    # =========================
+    #
+    # odom0 是 mecanum_drive_controller 发布的原始轮速里程计。
+    # 该消息中的 pose 和 twist 来自同一组轮速数据：
+    # - pose 是把速度积分出来的位置。
+    # - twist 是当前速度估计。
+    #
+    # 如果同时融合 pose 和 twist，同一个误差源会被重复计权。
+    # 因此这里只融合速度量，让 EKF 自己积分出位姿。
     odom0: /mecanum_drive_controller/odometry
+
+    # config 数组固定有 15 位，顺序如下：
+    # [x, y, z,
+    #  roll, pitch, yaw,
+    #  vx, vy, vz,
+    #  vroll, vpitch, vyaw,
+    #  ax, ay, az]
+    #
+    # 当前只打开：
+    # - vx：车体 x 方向速度，前进/后退。
+    # - vy：车体 y 方向速度，麦克纳姆轮横移。
+    # - vyaw：绕 z 轴角速度，原地旋转。
+    #
+    # 调参入口：
+    # - 直线里程明显漂移：先检查轮半径、轮距、编码器方向和 odom 协方差。
+    # - 横移不准：先检查麦克纳姆轮安装方向和 vy 符号。
+    # - 原地转角不准：先检查底盘几何参数和 vyaw 协方差。
     odom0_config: [false, false, false,
                    false, false, false,
                    true, true, false,
                    false, false, true,
                    false, false, false]
+
+    # odom0_differential=false 表示不要把 odom0 的输入再做差分。
+    # 因为本配置只融合 twist 速度量，速度本身已经是变化率。
     odom0_differential: false
+
+    # odom0_relative=false 表示不把第一帧当作相对零点重新解释。
+    # 当前 odom 坐标系由控制器和 EKF 的启动时刻共同定义，保持默认即可。
     odom0_relative: false
+
+    # 队列太小会在 CPU 抖动时丢消息；太大会增加延迟。
+    # 轮速 odom 频率较高，5 通常足够。若诊断显示丢帧，可尝试 10。
     odom0_queue_size: 5
 
+    # =========================
+    # 4. IMU 输入
+    # =========================
+    #
+    # imu0 是 MPU6050 驱动发布的原始 IMU 数据。
+    # 当前融合目标是用 IMU 改善短期角速度和加速度估计，而不是提供
+    # 绝对航向。MPU6050 没有磁力计，单靠陀螺仪无法长期给出不漂移的 yaw。
     imu0: /imu/data_raw
+
+    # 当前只打开：
+    # - vroll、vpitch、vyaw：三轴角速度。
+    # - ax、ay：车体平面内线加速度。
+    #
+    # 当前关闭：
+    # - roll、pitch、yaw：不融合 IMU 姿态，避免把原始 IMU 姿态当成
+    #   可靠绝对姿态。
+    # - az：2D 小车不使用竖直加速度；地面振动会让 az 噪声很大。
+    #
+    # 调参入口：
+    # - 静止时 `/odometry/filtered` 仍缓慢爬行：先增大 IMU 加速度协方差，
+    #   或临时关闭 ax、ay 验证是否由加速度噪声引起。
+    # - 转向响应慢：先确认 IMU 角速度单位是 rad/s，再适当减小角速度协方差。
+    # - yaw 长时间漂移：这是陀螺积分的物理限制，应引入外部航向约束，
+    #   不应单靠降低 IMU 协方差掩盖问题。
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,
                   true, true, true,
                   true, true, false]
+
+    # imu0_differential=false 表示不对 IMU 输入做差分。
+    # 角速度和线加速度本身已经是变化率；再次差分会放大噪声。
     imu0_differential: false
+
+    # imu0_relative=false 表示不把第一帧 IMU 姿态作为相对姿态基准。
+    # 当前没有融合姿态项，保持 false 可以避免未来误开姿态项时引入隐式零点。
     imu0_relative: false
+
+    # remove_gravitational_acceleration=true 表示希望滤除重力加速度。
+    # 注意：只有当 IMU 消息提供可用姿态时，重力扣除才有完整物理依据。
+    # 若实车静止时滤波输出出现持续线速度漂移，应优先检查：
+    # 1. `/imu/data_raw` 的 orientation_covariance 是否表示姿态可用。
+    # 2. IMU 安装方向是否仍是 +x 前、+y 左、+z 上。
+    # 3. 是否需要临时关闭 ax、ay 或调大 IMU 加速度协方差。
     imu0_remove_gravitational_acceleration: true
+
+    # IMU 发布频率通常高于轮速 odom，队列略大可以吸收短时调度抖动。
+    # 如果 CPU 占用高或输出延迟增大，不要盲目调大队列，先降低传感器频率。
     imu0_queue_size: 10
