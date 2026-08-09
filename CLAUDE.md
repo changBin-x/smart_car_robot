@@ -95,8 +95,18 @@ alwaysApply: true
 "custom_string_obkoro1_copyright": "Copyright (c) ${now_year} by${git config user.name}, All Rights Reserved. ",
 "Description": "", // 介绍文件的作用、文件的入参、出参。
 ```
+- 每次对话开始前都必须使用n2n-memory读取.mcp文件夹中的记忆，完成后都必须使用n2n-memory更新该项目的记忆
 
-## 7. 严格禁止事项
+## 7. Headroom 使用规则
+
+当读取到大型日志、JSON、搜索结果、构建输出或测试输出时：
+
+1. 优先判断内容是否过大。
+2. 如果内容较大，先调用 `headroom_compress`。
+3. 如果压缩结果不足以回答问题，再调用 `headroom_retrieve` 获取原始内容。
+4. 不要为了很短的内容调用 Headroom。
+
+## 8. 严格禁止事项
 
 - **严禁擅改源码**：不要修改源代码，除非我明确要求。
 - **严禁删除有用的测试**：不要删除任何现有的且有用的测试。

@@ -10,6 +10,7 @@
 # 编辑器与本地配置
 .vscode/
 *.user
+.mcp/
 
 # Python / pytest 本地缓存
 __pycache__/
@@ -22,3 +23,5 @@ docs/superpowers/
 topside/node_modules/
 .worktrees/
 topside/server/*_db.json
+.code-review-graph/
+qdrant_storage/
