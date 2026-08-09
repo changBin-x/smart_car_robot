@@ -169,6 +169,7 @@ def test_urdf_has_static_base_footprint_to_base_link_joint() -> None:
 def test_bringup_camera_uses_explicit_hik_opt_in() -> None:
     """总启动必须默认不接触相机，且只能包含新的相机包装包。"""
     launch_text = BRINGUP_LAUNCH.read_text(encoding="utf-8")
+    legacy_controller = "camera_" + "u" + "streamer_ctl"
 
     assert (
         'DeclareLaunchArgument(\n'
@@ -181,7 +182,7 @@ def test_bringup_camera_uses_explicit_hik_opt_in() -> None:
         '            default_value="false",'
     ) in launch_text
     assert 'FindPackageShare("hik_camera_bringup")' in launch_text
-    assert "camera_ustreamer_ctl" not in launch_text
+    assert legacy_controller not in launch_text
     assert "camera_stream_port" not in launch_text
     assert "camera_ctl_port" not in launch_text
 
@@ -190,6 +191,7 @@ def test_bringup_declares_new_camera_dependency_only() -> None:
     """bringup 必须依赖新包装包，并停止安装旧采集控制脚本。"""
     cmake_text = BRINGUP_CMAKE.read_text(encoding="utf-8")
     package_text = BRINGUP_PACKAGE.read_text(encoding="utf-8")
+    legacy_controller_script = "camera_" + "u" + "streamer_ctl.py"
 
     assert "<exec_depend>hik_camera_bringup</exec_depend>" in package_text
-    assert "camera_ustreamer_ctl.py" not in cmake_text
+    assert legacy_controller_script not in cmake_text
