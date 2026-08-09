@@ -45,3 +45,16 @@ def test_current_docs_do_not_recommend_legacy_camera_pipeline() -> None:
         content = document.read_text(encoding="utf-8")
         for legacy_term in legacy_terms:
             assert legacy_term not in content, document
+
+
+def test_camera_docs_describe_the_validated_mjpeg_bridge() -> None:
+    """相机说明必须明确内部原始话题和外部 BGR 接口的边界。"""
+    package_document = (
+        ROOT / "src/hik_camera_bringup/doc/验证手册.md"
+    ).read_text(encoding="utf-8")
+    root_document = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    for document in (package_document, root_document):
+        assert "/hik_monocular/driver/image_raw" in document
+        assert "/hik_monocular/image_raw" in document
+        assert "bgr8" in document

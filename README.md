@@ -242,7 +242,7 @@ ls /dev/ttyUSB* /dev/ttyACM*
 
 > 建议：为驱动板做 udev 固定别名（防止多 USB 设备时序号漂移），后续路线图中提供规则示例。
 
-> **摄像机方案**：`usb_cam` 独占设备并以实测可达的 MJPEG `1920×1080@30 fps` 采集，原始图像发布为 `/hik_monocular/image_raw`（`rgb8`）。可选 `web_video_server` 仅生成 `640×360` 的浏览器预览；相机与 Web 预览默认均关闭。
+> **摄像机方案**：`usb_cam` 独占设备并以实测可达的 MJPEG `1920×1080@30 fps` 采集到内部话题 `/hik_monocular/driver/image_raw`。`hik_mjpeg_decoder_node` 会校验 JPEG 帧边界、丢弃坏帧并将有效帧解码为对外的 `/hik_monocular/image_raw`（`bgr8`）。可选 `web_video_server` 仅消费该标准话题生成 `640×360` 的浏览器预览；相机与 Web 预览默认均关闭。
 
 ## 5. 编译与启动
 

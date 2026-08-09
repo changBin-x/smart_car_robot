@@ -5,8 +5,9 @@ Date: 2026-08-10
 LastEditors: ChangBin bin_chang@qq.com
 LastEditTime: 2026-08-10
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
-Description: 独占 V4L2 相机设备，发布标准 CameraInfo 和 rgb8 原始图像；
-    可选地以 web_video_server 提供低分辨率 MJPEG 预览。
+Description: 独占 V4L2 相机设备，采集原始 MJPEG 并发布标准 CameraInfo；
+    通过受控 MJPEG 解码桥接发布标准 bgr8 图像，并可选地以
+    web_video_server 提供低分辨率 MJPEG 预览。
 """
 
 from typing import List
@@ -64,6 +65,13 @@ def _create_camera_nodes(context: LaunchContext) -> List[Node]:
             "hik_monocular.yaml",
         ]
     )
+    decoder_parameters = PathJoinSubstitution(
+        [
+            FindPackageShare("hik_camera_bringup"),
+            "config",
+            "hik_mjpeg_decoder.yaml",
+        ]
+    )
 
     camera_prefix = []
     if _parse_boolean(
@@ -76,10 +84,18 @@ def _create_camera_nodes(context: LaunchContext) -> List[Node]:
         package="usb_cam",
         executable="usb_cam_node_exe",
         name="usb_cam",
-        namespace="/hik_monocular",
+        namespace="/hik_monocular/driver",
         output="screen",
         parameters=[camera_parameters],
         prefix=camera_prefix,
+    )
+    decoder_node = Node(
+        package="hik_camera_bringup",
+        executable="hik_mjpeg_decoder_node",
+        name="hik_mjpeg_decoder_node",
+        namespace="/hik_monocular",
+        output="screen",
+        parameters=[decoder_parameters],
     )
     web_video_node = Node(
         package="web_video_server",
@@ -97,7 +113,7 @@ def _create_camera_nodes(context: LaunchContext) -> List[Node]:
             }
         ],
     )
-    return [usb_cam_node, web_video_node]
+    return [usb_cam_node, decoder_node, web_video_node]
 
 
 def generate_launch_description() -> LaunchDescription:

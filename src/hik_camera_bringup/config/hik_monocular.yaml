@@ -1,14 +1,14 @@
 # 海康 USB 单目相机的实测采集契约。
 #
-# 该相机在 1920x1080 下只有 MJPEG 可稳定达到 30 fps；mjpeg2rgb 是
-# usb_cam 0.8.1 的解码像素格式，输出为标准 rgb8 图像。
+# 该相机在 1920x1080 下只有 MJPEG 可稳定达到 30 fps。usb_cam 仅负责
+# 原始 MJPEG 采集；坏帧校验和 BGR 解码由 hik_mjpeg_decoder_node 完成。
 /**:
   ros__parameters:
     video_device: /dev/hik_monocular
     framerate: 30.0
     io_method: mmap
     frame_id: hik_monocular_optical_frame
-    pixel_format: mjpeg2rgb
+    pixel_format: raw_mjpeg
     image_width: 1920
     image_height: 1080
     camera_name: hik_monocular

@@ -18,6 +18,8 @@ import yaml
 ROOT = Path(__file__).parents[3]
 # usb_cam 节点参数文件。
 CONFIG = ROOT / "src/hik_camera_bringup/config/hik_monocular.yaml"
+# MJPEG 解码桥接节点参数文件。
+DECODER_CONFIG = ROOT / "src/hik_camera_bringup/config/hik_mjpeg_decoder.yaml"
 # 初始 CameraInfo 标定占位文件。
 CALIBRATION = (
     ROOT / "src/hik_camera_bringup/camera_info/"
@@ -38,7 +40,7 @@ def test_hik_camera_yaml_locks_mjpeg_1080p_30fps() -> None:
     ]
 
     assert parameters["video_device"] == "/dev/hik_monocular"
-    assert parameters["pixel_format"] == "mjpeg2rgb"
+    assert parameters["pixel_format"] == "raw_mjpeg"
     assert parameters["io_method"] == "mmap"
     assert parameters["image_width"] == 1920
     assert parameters["image_height"] == 1080
@@ -49,6 +51,16 @@ def test_hik_camera_yaml_locks_mjpeg_1080p_30fps() -> None:
         "package://hik_camera_bringup/camera_info/"
         "hik_monocular_calibration.yaml"
     )
+
+
+def test_decoder_yaml_locks_output_dimensions() -> None:
+    """解码桥接必须仅接受与采集契约一致的图像尺寸。"""
+    parameters = yaml.safe_load(DECODER_CONFIG.read_text(encoding="utf-8"))["/**"][
+        "ros__parameters"
+    ]
+
+    assert parameters["expected_image_width"] == 1920
+    assert parameters["expected_image_height"] == 1080
 
 
 def test_initial_calibration_is_explicitly_invalid() -> None:
@@ -71,6 +83,8 @@ def test_launch_is_namespaced_and_preview_is_opt_in() -> None:
     """相机 Launch 必须隔离接口，且默认不启动 Web 视频服务。"""
     launch_text = LAUNCH.read_text(encoding="utf-8")
 
+    assert 'namespace="/hik_monocular/driver"' in launch_text
+    assert 'executable="hik_mjpeg_decoder_node"' in launch_text
     assert 'namespace="/hik_monocular"' in launch_text
     assert (
         '"use_web_preview",\n'

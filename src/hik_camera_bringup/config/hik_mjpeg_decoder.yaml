@@ -1,0 +1,7 @@
+# 原始 MJPEG 到标准 ROS BGR 图像的解码契约。
+#
+# 仅接受与 usb_cam 采集分辨率一致的有效 JPEG 帧，避免坏帧进入感知链路。
+/**:
+  ros__parameters:
+    expected_image_width: 1920
+    expected_image_height: 1080
