@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A4 landscape camera calibration target: 9 columns x 7 rows, 25 mm square. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm"
+     viewBox="0 0 297 210">
+  <title>hik_monocular calibration board</title>
+  <desc>9 columns x 7 rows; 25 mm square; print at 100% scale.</desc>
+  <defs>
+    <pattern id="checkerboard" width="50" height="50"
+             patternUnits="userSpaceOnUse">
+      <rect width="50" height="50" fill="white"/>
+      <rect width="25" height="25" fill="black"/>
+      <rect x="25" y="25" width="25" height="25" fill="black"/>
+    </pattern>
+  </defs>
+  <rect width="297" height="210" fill="white"/>
+  <text x="148.5" y="10" text-anchor="middle" font-family="sans-serif"
+        font-size="5">hik_monocular calibration board</text>
+  <rect x="36" y="17.5" width="225" height="175" fill="url(#checkerboard)"
+        stroke="black" stroke-width="0.4"/>
+  <text x="148.5" y="201" text-anchor="middle" font-family="sans-serif"
+        font-size="4">8 x 6 inner corners, 25 mm square</text>
+  <text x="148.5" y="206" text-anchor="middle" font-family="sans-serif"
+        font-size="3.5">Print at 100% scale. Verify one square with a ruler before calibration.</text>
+</svg>

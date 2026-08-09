@@ -19,8 +19,8 @@
   - 动态显示 S1、S2、S3 单体估计电压与低电量警告。
 - 🗺️ **高德地图定位 & 摄像机画面切换**:
   - 支持配置高德地图 Web JS API Key，基于里程计/定位高精追踪小车在地图上的实时点位与轨迹；
-  - 一键切换至摄像头画面：浏览器直连树莓派 MJPEG HTTP 流（**非 ROS 话题**，不经 rosbridge）；
-  - 支持低延迟 / 高清档位切换（调用质量控制口重启单实例 `ustreamer`）；未接硬件时显示断流提示与退避重连。
+  - 一键查看摄像头画面：浏览器通过 `web_video_server` 预览 ROS 图像话题，不经 rosbridge；
+  - 固定使用 `640×360` 预览参数；未接硬件时显示断流提示与指数退避重连。
 - 🧭 **Three.js 3D 车体姿态可视化**: 订阅 `/imu/data_raw` 话题，实时在 WebGL 3D 麦轮模型中渲染小车横滚 (Roll)、俯仰 (Pitch)、偏航 (Yaw) 姿态变化。
 - 🎮 **全向运动控制面板**:
   - 具备前进、后退、左右平移（麦轮独有）、左右旋转与急停控制；
@@ -50,11 +50,11 @@
                                       │ ws://192.168.10.17:9090
 ┌─────────────────────────────────────▼───────────────────────────────────────┐
 │              树莓派 4B (ROS 2 Jazzy + rosbridge_websocket)                  │
-│              + ustreamer MJPEG :8080 / quality ctl :8082                   │
+│              + usb_cam / web_video_server :8080                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-摄像机视频为旁路链路：浏览器 `<img>` 直连 `http://<pi-ip>:8080/stream`，与 WebSocket `9090` 控制遥测解耦。
+摄像机预览独立于 WebSocket `9090`：浏览器 `<img>` 访问 `web_video_server`，该服务读取 `/hik_monocular/image_raw` 并转码为 MJPEG。
 
 ---
 
@@ -145,25 +145,19 @@ npm run dev
 `/mecanum_drive_controller/odometry`。完整 `nav_msgs/msg/Odometry` 仅保留给
 ROS 内部调试与算法模块，避免树莓派上的 `rosbridge_websocket` 序列化异常。
 
-## 摄像机 HTTP 流（旁路 ROS）
+## 摄像机 Web 预览
 
-视频**不走** ROS 话题 / rosbridge，由树莓派上的单实例 `ustreamer`（经 `camera_ustreamer_ctl` 管理）提供 MJPEG-HTTP。主机 IP 默认从导航栏 rosbridge URL 解析（如 `ws://192.168.10.17:9090` → `192.168.10.17`）。
+相机由树莓派的 `usb_cam` 发布 `/hik_monocular/image_raw`，浏览器不通过 rosbridge 传输图像，而是访问独立的 `web_video_server`。主机 IP 默认从导航栏 rosbridge URL 解析（如 `ws://192.168.10.17:9090` → `192.168.10.17`）。
 
 | 用途 | URL | 说明 |
 | --- | --- | --- |
-| 画面拉流 | `http://<pi-ip>:8080/stream` | 低延迟与高清共用同一推流端口；切档后 URL 不变（可带 `?t=` 缓存破坏） |
-| 档位切换 | `http://<pi-ip>:8082/quality?mode=low\|high` | `low` = 640×480@30；`high` = 1280×720@15；格式 YUYV + CPU |
+| 画面拉流 | `http://<pi-ip>:8080/stream?topic=/hik_monocular/image_raw&width=640&height=360&quality=70&client_id=topside-camera` | 固定缩放，防止浏览器预览抢占主图像采集资源 |
 
 仪表盘布局：地图与摄像机**并排同时显示**（非互斥切换）；电池状态与麦轮遥控面板在同一列。
 
-`CameraView` 拉流行为摘要：
+`CameraView` 发生断流时，`onError` 触发指数退避重连（约 `1 s → 2 s → 4 s`，上限 `8 s`）。请以 HTTP 页面打开上位机；若改为 HTTPS，需处理浏览器混合内容策略。
 
-1. 默认低延迟档，`<img src>` 指向 `:8080/stream`。
-2. 点击「高清 / 低延迟」时先请求 `:8082/quality?mode=...`，成功后再刷新 `<img>`。
-3. 断流时 `onError` 触发指数退避重连（约 1 s → 2 s → 4 s，上限 8 s）。
-4. 请以 `http://localhost:3030` 打开上位机（HTTP 页拉 HTTP 流）；若将来改为 HTTPS，需注意混合内容限制。
-
-前置：树莓派已 `sudo apt install -y ustreamer`，且 bringup 以 `use_mock_hardware:=false`、`use_camera:=true`（默认）启动。
+前置：树莓派已安装 `ros-jazzy-usb-cam`、`ros-jazzy-web-video-server`，并以 `use_hik_camera:=true use_web_preview:=true` 显式启动相机链路。若主图像频率低于 `28 fps`，关闭 `use_web_preview`。
 
 ---
 

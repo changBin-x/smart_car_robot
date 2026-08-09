@@ -14,6 +14,7 @@
 - **MPU6050 坐标约定**：`/imu/data_raw` 的 `frame_id` 为 `base_link`；MPU6050 芯片中心等同 `base_link` 原点，右手系 `+x` 前、`+y` 左、`+z` 上。
 - **WebSocket 通信桥接**：集成 `rosbridge_server`（`rosbridge_websocket_launch.xml`），提供 9090 端口的 WebSocket 接口，方便 Web 端与小车进行交互。
 - **Xbox 手柄遥控控制**：集成 `joy` 与单一 `joystick_teleop` 控制节点，支持左摇杆上下控制前后移动、左摇杆左右控制旋转、D-pad 恒速控制前后与左右平移；右摇杆不参与控制，默认配备 LB 安全使能与 RB Turbo。
+- **可选 USB 单目相机**：`use_hik_camera:=true` 时包含 `hik_camera_bringup`；相机和 `web_video_server` 预览默认关闭，避免未接硬件或预览负载影响控制栈。
 
 ## 目录结构
 
@@ -76,6 +77,8 @@ ros2 launch smartcar_bringup joy_teleop.launch.py joy_dev:=/dev/input/js0
 | i2c_address | `0x68` | MPU6050 I2C 地址 |
 | use_joy | `false` | 是否同时启动 Xbox 手柄遥控栈 |
 | joy_dev | `/dev/input/js0` | 手柄 Linux 设备节点路径 |
+| use_hik_camera | `false` | 是否包含 `hik_camera_bringup` 相机采集链路 |
+| use_web_preview | `false` | 是否在已启用相机时启动 Web 图像预览 |
 
 ## Xbox 手柄遥控映射说明
 
@@ -127,6 +130,7 @@ ros2 run tf2_ros tf2_echo odom base_footprint
 - `rosbridge_server`（WebSocket 桥接服务）
 - `joy`（Xbox 手柄输入）
 - `motor_driver`（实机模式；本仓库同级包）
+- `hik_camera_bringup`（可选 USB 单目相机；实机还需安装系统 `usb_cam` 依赖）
 
 ## 许可证
 

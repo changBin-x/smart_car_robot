@@ -9,6 +9,7 @@
 |---|---|
 | `build.sh` | 一键编译整个工作空间，并开启 `compile_commands.json` 导出 |
 | `setup_clangd.sh` | 合并各包的编译数据库到仓库根，供 clangd 索引 |
+| `install_hik_camera_system.sh` | 在显式开关下安装单目相机的 udev、USB 缓冲和可选 RT 服务 |
 | `show_system_info.py` | 在 0.96寸 I2C OLED (SSD1306) 显示屏上实时显示系统 CPU、温度、内存和硬盘使用率 |
 
 ## build.sh
@@ -59,6 +60,18 @@ IntelliSense。VS Code 用户需：
 `.clangd` 已强制 C++20 并移除 GCC 专有参数，确保 clangd（clang 前端）能正确解析
 `<numbers>` 等 C++20 特性。
 
+## install_hik_camera_system.sh
+
+该脚本默认只显示帮助，不会改动系统。首次部署海康 USB 单目相机时，可显式安装稳定别名和 USB 缓冲配置：
+
+```bash
+bash scripts/install_hik_camera_system.sh --install-udev --configure-usb-buffer \
+  --workspace /home/bean/smart_car_robot
+sudo reboot
+```
+
+重启后，`/dev/hik_monocular` 应指向已绑定序列号的相机。`--install-rt-service` 只安装 FIFO `systemd` 单元，不会自动启用；必须先完成 `usb_cam` 的 `60 s` 基准测试，并确认主图像不低于 `28 fps` 后再人工启用。
+
 ## show_system_info.py
 
 在 0.96寸 I2C OLED (SSD1306) 显示屏上实时显示当前系统的 CPU 使用率、CPU 温度、内存使用率和硬盘使用率。
@@ -83,4 +96,3 @@ python3 scripts/show_system_info.py --interval 2.0
 # 终端控制台调试模式 (用于无 OLED 屏幕测试)
 python3 scripts/show_system_info.py --console
 ```
-
