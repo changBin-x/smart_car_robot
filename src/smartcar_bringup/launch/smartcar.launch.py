@@ -4,7 +4,7 @@ Date: 2026-08-03
 LastEditors: ChangBin bin_chang@qq.com
 LastEditTime: 2026-08-04
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
-Description: 一键启动四轮麦克纳姆小车控制栈与实机摄像头推流控制器
+Description: 一键启动四轮麦克纳姆小车控制栈与可选 USB 单目相机。
 -----------------------------------------------------------
 启动内容：
   1) robot_state_publisher —— 用 xacro 展开的 URDF 发布 robot_description + 静态 TF
@@ -16,7 +16,7 @@ Description: 一键启动四轮麦克纳姆小车控制栈与实机摄像头推�
   7) ekf_filter_node_odom  —— 可选 EKF，融合轮速里程计与 MPU6050
   8) rosbridge_websocket   —— rosbridge_server 的 WebSocket 桥接（端口 9090）
   9) joy_teleop            —— Xbox 手柄遥控栈（可选参数 use_joy:=true 启动）
- 10) camera_ustreamer_ctl  —— 单实例 ustreamer 摄像头推流与质量切换控制
+ 10) hik_camera_bringup    —— 可选 usb_cam 单目相机与 Web 预览
 
 launch 参数：
   use_mock_hardware (默认 true)：true=mock 仿真（WSL2），false=实机串口
@@ -28,10 +28,8 @@ launch 参数：
   imu_calibration_file：MPU6050 实车标定参数覆盖文件
   use_joy           (默认 false)：是否同时启动 Xbox 手柄遥控栈
   joy_dev           (默认 /dev/input/js0)：手柄设备节点路径
-  use_camera        (默认 true)：实机时是否启动摄像头推流控制器
-  camera_device     (默认 /dev/video0)：UVC 摄像头设备路径
-  camera_stream_port(默认 8080)：ustreamer MJPEG HTTP 推流端口
-  camera_ctl_port   (默认 8082)：摄像头质量切换 HTTP 控制端口
+  use_hik_camera    (默认 false)：是否启动 USB 单目相机采集
+  use_web_preview   (默认 false)：是否启动相机 Web 预览服务
 
 用法：
   WSL2 仿真：ros2 launch smartcar_bringup smartcar.launch.py
@@ -42,7 +40,8 @@ launch 参数：
                 use_ekf:=true
   说明：实机（use_mock_hardware:=false）时一并启动 MPU6050；
         WSL2 mock 模式不启 IMU（无 I2C 硬件），但可显式
-        use_ekf:=true 验证 EKF 配置加载。
+        use_ekf:=true 验证 EKF 配置加载。相机仅在显式
+        use_hik_camera:=true 时启动。
 """
 
 from launch import LaunchDescription
@@ -60,7 +59,6 @@ from launch.substitutions import (
     FindExecutable,
     LaunchConfiguration,
     PathJoinSubstitution,
-    PythonExpression,
 )
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -127,24 +125,14 @@ def generate_launch_description():
             description="手柄 Linux 设备节点路径 (use_joy:=true 时生效)",
         ),
         DeclareLaunchArgument(
-            "use_camera",
-            default_value="true",
-            description="实机时是否启动摄像头推流控制器",
+            "use_hik_camera",
+            default_value="false",
+            description="是否启动 usb_cam USB 单目相机采集链路",
         ),
         DeclareLaunchArgument(
-            "camera_device",
-            default_value="/dev/video0",
-            description="UVC 摄像头设备路径 (use_camera:=true 且实机时生效)",
-        ),
-        DeclareLaunchArgument(
-            "camera_stream_port",
-            default_value="8080",
-            description="ustreamer MJPEG HTTP 推流端口",
-        ),
-        DeclareLaunchArgument(
-            "camera_ctl_port",
-            default_value="8082",
-            description="摄像头质量切换 HTTP 控制端口",
+            "use_web_preview",
+            default_value="false",
+            description="是否同时启动 web_video_server 相机预览服务",
         ),
     ]
 
@@ -158,10 +146,8 @@ def generate_launch_description():
     imu_calibration_file = LaunchConfiguration("imu_calibration_file")
     use_joy = LaunchConfiguration("use_joy")
     joy_dev = LaunchConfiguration("joy_dev")
-    use_camera = LaunchConfiguration("use_camera")
-    camera_device = LaunchConfiguration("camera_device")
-    camera_stream_port = LaunchConfiguration("camera_stream_port")
-    camera_ctl_port = LaunchConfiguration("camera_ctl_port")
+    use_hik_camera = LaunchConfiguration("use_hik_camera")
+    use_web_preview = LaunchConfiguration("use_web_preview")
 
     pkg_share = FindPackageShare("smartcar_bringup")
     mpu6050_params = PathJoinSubstitution(
@@ -345,26 +331,21 @@ def generate_launch_description():
         launch_arguments={"joy_dev": joy_dev}.items(),
     )
 
-    # 摄像头只在实机路径启动；WSL2 mock 模式没有 /dev/video0 访问契约。
-    camera_launch = IncludeLaunchDescription(
+    # 相机默认关闭。用户显式启用后由独立包装包独占 V4L2 设备，
+    # 避免控制栈与图像采集链路彼此耦合。
+    hik_camera_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg_share, "launch", "camera.launch.py"])
-        ),
-        condition=IfCondition(
-            PythonExpression(
+            PathJoinSubstitution(
                 [
-                    "'",
-                    use_camera,
-                    "' == 'true' and '",
-                    use_mock_hardware,
-                    "' == 'false'",
+                    FindPackageShare("hik_camera_bringup"),
+                    "launch",
+                    "hik_camera.launch.py",
                 ]
             )
         ),
+        condition=IfCondition(use_hik_camera),
         launch_arguments={
-            "camera_device": camera_device,
-            "camera_stream_port": camera_stream_port,
-            "camera_ctl_port": camera_ctl_port,
+            "use_web_preview": use_web_preview,
         }.items(),
     )
 
@@ -382,6 +363,6 @@ def generate_launch_description():
             rviz_node,
             rosbridge_launch,
             joy_teleop_launch,
-            camera_launch,
+            hik_camera_launch,
         ]
     )

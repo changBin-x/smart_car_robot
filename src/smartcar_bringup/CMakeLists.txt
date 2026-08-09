@@ -18,7 +18,6 @@ install(
 
 install(
   PROGRAMS
-    scripts/camera_ustreamer_ctl.py
     scripts/joystick_teleop.py
     scripts/web_telemetry_adapter.py
   DESTINATION lib/${PROJECT_NAME}

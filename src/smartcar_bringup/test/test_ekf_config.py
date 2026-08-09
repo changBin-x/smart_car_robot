@@ -24,6 +24,9 @@ MPU6050_PARAMS = ROOT / "src/ros2_mpu6050/config/params.yaml"
 MPU6050_PACKAGE = ROOT / "src/ros2_mpu6050/package.xml"
 WEB_ADAPTER = ROOT / "src/smartcar_bringup/scripts/web_telemetry_adapter.py"
 BRINGUP_URDF = ROOT / "src/smartcar_bringup/urdf/smartcar.urdf.xacro"
+BRINGUP_LAUNCH = ROOT / "src/smartcar_bringup/launch/smartcar.launch.py"
+BRINGUP_CMAKE = ROOT / "src/smartcar_bringup/CMakeLists.txt"
+BRINGUP_PACKAGE = ROOT / "src/smartcar_bringup/package.xml"
 
 
 def test_ekf_uses_expected_frames_and_topics() -> None:
@@ -84,9 +87,7 @@ def test_bringup_launches_ekf_with_explicit_opt_in() -> None:
     package_xml = (
         ROOT / "src/smartcar_bringup/package.xml"
     ).read_text(encoding="utf-8")
-    launch_text = (
-        ROOT / "src/smartcar_bringup/launch/smartcar.launch.py"
-    ).read_text(encoding="utf-8")
+    launch_text = BRINGUP_LAUNCH.read_text(encoding="utf-8")
 
     assert "<exec_depend>robot_localization</exec_depend>" in package_xml
     assert 'package="robot_localization"' in launch_text
@@ -163,3 +164,32 @@ def test_urdf_has_static_base_footprint_to_base_link_joint() -> None:
     assert '<joint name="base_footprint_joint" type="fixed">' in urdf_text
     assert '<parent link="base_footprint"/>' in urdf_text
     assert '<child link="base_link"/>' in urdf_text
+
+
+def test_bringup_camera_uses_explicit_hik_opt_in() -> None:
+    """总启动必须默认不接触相机，且只能包含新的相机包装包。"""
+    launch_text = BRINGUP_LAUNCH.read_text(encoding="utf-8")
+
+    assert (
+        'DeclareLaunchArgument(\n'
+        '            "use_hik_camera",\n'
+        '            default_value="false",'
+    ) in launch_text
+    assert (
+        'DeclareLaunchArgument(\n'
+        '            "use_web_preview",\n'
+        '            default_value="false",'
+    ) in launch_text
+    assert 'FindPackageShare("hik_camera_bringup")' in launch_text
+    assert "camera_ustreamer_ctl" not in launch_text
+    assert "camera_stream_port" not in launch_text
+    assert "camera_ctl_port" not in launch_text
+
+
+def test_bringup_declares_new_camera_dependency_only() -> None:
+    """bringup 必须依赖新包装包，并停止安装旧采集控制脚本。"""
+    cmake_text = BRINGUP_CMAKE.read_text(encoding="utf-8")
+    package_text = BRINGUP_PACKAGE.read_text(encoding="utf-8")
+
+    assert "<exec_depend>hik_camera_bringup</exec_depend>" in package_text
+    assert "camera_ustreamer_ctl.py" not in cmake_text

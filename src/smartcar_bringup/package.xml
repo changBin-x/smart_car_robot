@@ -34,6 +34,7 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>rosbridge_server</exec_depend>
+  <exec_depend>hik_camera_bringup</exec_depend>
   <exec_depend>joy</exec_depend>
   <exec_depend>teleop_twist_keyboard</exec_depend>
   <exec_depend>rclpy</exec_depend>
