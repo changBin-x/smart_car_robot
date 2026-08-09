@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """将 Xbox 手柄输入转换为麦克纳姆底盘的 TwistStamped 指令。
 
 Author: ChangBin bin_chang@qq.com
