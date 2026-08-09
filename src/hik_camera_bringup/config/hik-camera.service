@@ -1,0 +1,18 @@
+# 可选实时运行单元：仅在基准测试通过后由安装脚本显式安装并启用。
+[Unit]
+Description=Hik monocular USB camera (usb_cam)
+After=network.target
+
+[Service]
+Type=simple
+User=bean
+CPUAffinity=2
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=70
+LimitRTPRIO=70
+Restart=on-failure
+RestartSec=2
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source @WORKSPACE@/install/setup.bash && exec ros2 launch hik_camera_bringup hik_camera.launch.py use_cpu_affinity:=false use_web_preview:=false'
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,2 @@
+# 仅为已测量的海康 USB 单目相机创建稳定设备别名。
+SUBSYSTEM=="video4linux", ATTRS{idVendor}=="2bdf", ATTRS{idProduct}=="0293", ATTRS{serial}=="DC474C00_P090100_SN0002", SYMLINK+="hik_monocular", GROUP="video", MODE="0660"

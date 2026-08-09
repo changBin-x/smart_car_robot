@@ -1,0 +1,22 @@
+# 未标定占位文件：禁止用于感知、几何测量、SLAM 或避障。
+# 完成棋盘格标定后，必须用真实相机内参替换本文件的全部零值。
+image_width: 0
+image_height: 0
+camera_name: hik_monocular
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.0, 0.0, 0.0, 0.0, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+  schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>hik_camera_bringup</name>
+  <version>0.1.0</version>
+  <description>
+    海康 USB 单目相机的 usb_cam 配置包装包。该包只安装配置和启动文件，
+    不实现自定义图像采集逻辑。
+  </description>
+  <maintainer email="bin_chang@qq.com">ChangBin</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>usb_cam</exec_depend>
+  <exec_depend>image_transport</exec_depend>
+  <exec_depend>web_video_server</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-yaml</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
