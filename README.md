@@ -1,7 +1,7 @@
 # smart_car_robot —— 四轮麦克纳姆轮全向移动小车
 
 基于 **ROS 2 Jazzy + ros2_control** 的四轮麦克纳姆轮全向移动平台。项目远程仓库为： [smart_car_robot](https://github.com/changBin-x/smart_car_robot.git)
-上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与原始轮速里程计，实车可显式启用 `robot_localization` 的 `ekf_filter_node_odom`，将轮速里程计速度量与 MPU6050 的 `/imu/data_raw` 融合为 `/odometry/filtered`，并由 EKF 独占发布 `odom -> base_footprint` 动态 TF。项目集成 `rosbridge_server` 提供 WebSocket 通信服务，并通过 `web_telemetry_adapter` 向 Web UI 输出轻量遥测话题，同时支持 Xbox 手柄遥控（`joy` + `teleop_twist_joy`），
+上层使用 `ros2_controllers` 自带的 `mecanum_drive_controller` 做全向运动学解算与原始轮速里程计，实车可显式启用 `robot_localization` 的 `ekf_filter_node_odom`，将轮速里程计速度量与 MPU6050 的 `/imu/data_raw` 融合为 `/odometry/filtered`，并由 EKF 独占发布 `odom -> base_footprint` 动态 TF。项目集成 `rosbridge_server` 提供 WebSocket 通信服务，并通过 `web_telemetry_adapter` 向 Web UI 输出轻量遥测话题，同时支持 Xbox 手柄遥控（`joy` + 自定义 `joystick_teleop` 节点），
 底层通过自研 `hardware_interface::SystemInterface` 插件（`motor_driver`）经 USB 串口
 驱动 4 路电机驱动板，闭环控制 4 个 MG310 霍尔编码器减速电机。
 
@@ -53,7 +53,7 @@ graph TD
         TELEOP["teleop_twist_keyboard / Nav2 / Web UI 控制面<br/>(TwistStamped / WebSocket)"]
         WEBUI["Web UI 遥测面<br/>(订阅 /web/telemetry/*)"]
         ROSBRIDGE["rosbridge_server<br/>(rosbridge_websocket 端口 9090)"]
-        JOY["joy_node + teleop_twist_joy_node<br/>(Xbox 手柄 /dev/input/js0)"]
+        JOY["joy_node + joystick_teleop_node<br/>(Xbox 手柄 /dev/input/js0)"]
     end
     subgraph "ros2_control 框架"
         CM[controller_manager]
@@ -115,7 +115,7 @@ graph TD
 - **joint_state_broadcaster**：把 8 个状态接口转发为 `/joint_states`。
 - **web_telemetry_adapter**：订阅 `/mecanum_drive_controller/odometry`，提取平面速度与二维位姿，发布 `/web/telemetry/twist` 和 `/web/telemetry/pose` 供 Web UI 订阅。位姿消息使用保留时间戳和坐标系的 `geometry_msgs/msg/PoseStamped`。
 - **rosbridge_server**：启动 WebSocket 服务（包含 `rosbridge_websocket_launch.xml`），默认监听端口 `9090`。Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，而是通过 `/web/telemetry/*` 消费轻量遥测数据。
-- **Xbox 手柄遥控**：启动 `joy_node` 接入 `/dev/input/js0` 设备，由 `teleop_twist_joy_node` 转换左摇杆上下（前后移动）、左摇杆左右（转弯）与右摇杆左右（左右平移）为 `TwistStamped`。
+- **Xbox 手柄遥控**：启动 `joy_node` 接入 `/dev/input/js0` 设备，由单一 `joystick_teleop_node` 统一处理左摇杆、D-pad、LB 安全使能和 RB Turbo，并输出 `TwistStamped`。方向键以恒定速度控制前后和左右平移，右摇杆不参与控制。详细映射见 [Xbox 手柄映射图](docs/xbox_手柄映射.png)。
 - **motor_driver**：读——解析驱动板周期上报的编码器计数，换算 rad / rad/s；
   写——把 rad/s 命令换算为 mm/s 下发 `$spd` 指令。详见 [motor_driver/README.md](src/motor_driver/README.md)。
 - **mock 模式**（WSL2）：`<ros2_control>` 内换用 `mock_components/GenericSystem`，
@@ -153,7 +153,7 @@ smart_car_robot/                     # 仓库根 = colcon 工作空间根
     └── smartcar_bringup/            #   模型 + 控制器配置 + 启动包
         ├── urdf/                    #     xacro（底盘 + 4 轮 + ros2_control 标签）
         ├── config/                  #     controllers.yaml + ekf_odom.yaml + xbox_teleop.yaml
-        ├── launch/                  #     bringup launch（含 rosbridge_server 与 joy_teleop）
+        ├── launch/                  #     bringup launch（含 rosbridge_server 与手柄遥控）
         ├── doc/                     #     验证手册
         ├── README.md
         ├── CMakeLists.txt
@@ -290,6 +290,10 @@ ros2 launch smartcar_bringup smartcar.launch.py \
 # 独立启动 Xbox 手柄遥控
 ros2 launch smartcar_bringup joy_teleop.launch.py joy_dev:=/dev/input/js0
 
+# Xbox 手柄映射图
+# 可编辑源文件：docs/xbox_手柄映射.drawio
+# PNG 预览：docs/xbox_手柄映射.png
+
 # 仅启动 IMU（可选）
 ros2 launch smartcar_bringup mpu6050.launch.py
 
@@ -378,7 +382,7 @@ ros2 run tf2_ros tf2_echo odom base_link
 - [x] 电机方向系数校准（2026-07-19：`direction_m2/m3=-1`）
 - [x] 电池电量：`$read_vol#` → `/battery_state`（`sensor_msgs/BatteryState`）
 - [x] 接入 WebSocket 桥接（`rosbridge_server` 端口 9090）与 Web 遥测适配层（`/web/telemetry/*`）
-- [x] 集成 Xbox 手柄遥控（`joy` + `teleop_twist_joy`）
+- [x] 集成 Xbox 手柄遥控（`joy` + `joystick_teleop`），支持 D-pad 恒速平移
 - [x] USB 摄像机 MJPEG 推流（单实例 `ustreamer` + `camera_ustreamer_ctl`，上位机 `MapCameraView` 已接入）
 - [x] 接入 MPU6050 与 `robot_localization` EKF，输出 `/odometry/filtered` 和 `odom -> base_footprint`
 - [x] 树莓派地面直行 EKF 验证：编码器纵向误差约 `2.5%`，确认 `odom.y` 需按起始航向换算

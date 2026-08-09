@@ -19,6 +19,7 @@ install(
 install(
   PROGRAMS
     scripts/camera_ustreamer_ctl.py
+    scripts/joystick_teleop.py
     scripts/web_telemetry_adapter.py
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -32,6 +33,11 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_web_telemetry_adapter
     test/test_web_telemetry_adapter.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts
+  )
+  ament_add_pytest_test(
+    test_joystick_teleop
+    test/test_joystick_teleop.py
     APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts
   )
 endif()

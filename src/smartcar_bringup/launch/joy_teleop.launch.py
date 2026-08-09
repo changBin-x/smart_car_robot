@@ -4,7 +4,7 @@ Date: 2026-07-23
 LastEditors: ChangBin bin_chang@qq.com
 LastEditTime: 2026-07-23
 Copyright (c) 2026 by ChangBin, All Rights Reserved.
-Description: Xbox 手柄遥控独立启动脚本 (joy_node + teleop_twist_joy_node)
+Description: Xbox 手柄遥控独立启动脚本 (joy_node + joystick_teleop_node)
 """
 
 from launch import LaunchDescription
@@ -23,7 +23,7 @@ def setup_launch_nodes(context, *args, **kwargs):
         **kwargs: 可变关键字参数。
 
     Returns:
-        Node 列表，包含配置好的 joy_node 与 teleop_twist_joy_node。
+        Node 列表，包含配置好的 joy_node 与 joystick_teleop_node。
     """
     pkg_share = FindPackageShare("smartcar_bringup")
     default_config_path = PathJoinSubstitution(
@@ -57,19 +57,16 @@ def setup_launch_nodes(context, *args, **kwargs):
         parameters=joy_params,
     )
 
-    # 手柄按键到速度指令转换节点
-    teleop_twist_joy_node = Node(
-        package="teleop_twist_joy",
-        executable="teleop_node",
-        name="teleop_twist_joy_node",
+    # 手柄输入到速度指令的统一转换节点。
+    joystick_teleop_node = Node(
+        package="smartcar_bringup",
+        executable="joystick_teleop.py",
+        name="joystick_teleop_node",
         output="screen",
         parameters=[joy_config],
-        remappings=[
-            ("cmd_vel", "/mecanum_drive_controller/reference"),
-        ],
     )
 
-    return [joy_node, teleop_twist_joy_node]
+    return [joy_node, joystick_teleop_node]
 
 
 def generate_launch_description():
@@ -77,7 +74,8 @@ def generate_launch_description():
 
     包含两个主要节点：
       1. joy_node: 读取 Linux 游戏手柄设备 (/dev/input/js0)，发布 /joy 话题
-      2. teleop_twist_joy_node: 解析 /joy 并转为 /mecanum_drive_controller/reference (TwistStamped)
+      2. joystick_teleop_node: 解析 /joy，并转为
+         /mecanum_drive_controller/reference (TwistStamped)
 
     Returns:
         包含参数声明与节点加载动作的 LaunchDescription 实例。
@@ -103,4 +101,3 @@ def generate_launch_description():
     return LaunchDescription(
         declared_arguments + [OpaqueFunction(function=setup_launch_nodes)]
     )
-

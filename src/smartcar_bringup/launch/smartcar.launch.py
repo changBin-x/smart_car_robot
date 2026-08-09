@@ -119,7 +119,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_joy",
             default_value="false",
-            description="是否启动 Xbox 手柄遥控控制栈 (joy_node + teleop_twist_joy_node)",
+            description="是否启动 Xbox 手柄遥控控制栈 (joy_node + joystick_teleop_node)",
         ),
         DeclareLaunchArgument(
             "joy_dev",

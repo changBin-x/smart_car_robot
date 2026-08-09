@@ -1,6 +1,6 @@
 # smartcar_bringup
 
-四轮麦克纳姆小车的模型、控制器配置与启动包。提供 xacro 底盘模型（含 `<ros2_control>` 标签）、`controllers.yaml`（`joint_state_broadcaster` + `mecanum_drive_controller`）、可选 `robot_localization` EKF 融合、WebSocket 桥接（`rosbridge_server`）、Xbox 手柄遥控（`joy` + `teleop_twist_joy`）以及一键启动的 launch 文件。
+四轮麦克纳姆小车的模型、控制器配置与启动包。提供 xacro 底盘模型（含 `<ros2_control>` 标签）、`controllers.yaml`（`joint_state_broadcaster` + `mecanum_drive_controller`）、可选 `robot_localization` EKF 融合、WebSocket 桥接（`rosbridge_server`）、Xbox 手柄遥控（`joy` + `joystick_teleop`）以及一键启动的 launch 文件。
 
 - 包类型：`ament_cmake`（纯资源包，无编译产物）
 - ROS 版本：ROS 2 Jazzy
@@ -13,7 +13,7 @@
 - **里程计 / IMU 融合**：显式 `use_ekf:=true` 时启动 `ekf_filter_node_odom`，融合轮速里程计速度量与 `/imu/data_raw`，输出 `/odometry/filtered` 并发布唯一的 `odom -> base_footprint`。
 - **MPU6050 坐标约定**：`/imu/data_raw` 的 `frame_id` 为 `base_link`；MPU6050 芯片中心等同 `base_link` 原点，右手系 `+x` 前、`+y` 左、`+z` 上。
 - **WebSocket 通信桥接**：集成 `rosbridge_server`（`rosbridge_websocket_launch.xml`），提供 9090 端口的 WebSocket 接口，方便 Web 端与小车进行交互。
-- **Xbox 手柄遥控控制**：集成 `joy` 与 `teleop_twist_joy` 控制栈，支持左摇杆上下控制前后移动、左摇杆左右控制转弯、右摇杆左右控制左右平移，默认配备 LB 键安全使能与 RB 键加速功能。
+- **Xbox 手柄遥控控制**：集成 `joy` 与单一 `joystick_teleop` 控制节点，支持左摇杆上下控制前后移动、左摇杆左右控制旋转、D-pad 恒速控制前后与左右平移；右摇杆不参与控制，默认配备 LB 安全使能与 RB Turbo。
 
 ## 目录结构
 
@@ -25,10 +25,12 @@ smartcar_bringup/
 ├── config/
 │   ├── controllers.yaml              # 控制器与运动学参数配置
 │   ├── ekf_odom.yaml                 # robot_localization 局部 EKF 参数
-│   └── xbox_teleop.yaml              # Xbox 手柄摇杆轴与死区比例映射配置
+│   └── xbox_teleop.yaml              # Xbox 手柄摇杆、D-pad 与安全参数配置
 ├── launch/
 │   ├── smartcar.launch.py            # 一键启动 launch 脚本（含 rosbridge_server 与可选手柄）
 │   └── joy_teleop.launch.py          # Xbox 手柄独立遥控 launch 脚本
+├── scripts/
+│   └── joystick_teleop.py             # 统一手柄输入与速度发布节点
 ├── doc/
 │   └── 验证手册.md                    # 完整验证步骤与命令
 ├── CMakeLists.txt
@@ -77,16 +79,20 @@ ros2 launch smartcar_bringup joy_teleop.launch.py joy_dev:=/dev/input/js0
 
 ## Xbox 手柄遥控映射说明
 
-`config/xbox_teleop.yaml` 针对标准 Xbox 手柄（Linux `/dev/input/js0`）进行了优化映射：
+`config/xbox_teleop.yaml` 针对标准 Xbox 手柄（Linux `/dev/input/js0`）配置了摇杆、D-pad 和安全映射：
 
-- **左摇杆上下 (Axis 1)**：控制前后移动（`linear.x`，推上最大 0.5 m/s，拉下 -0.5 m/s）。
-- **左摇杆左右 (Axis 0)**：控制左转 / 右转（`angular.z`，推左最大 1.5 rad/s，推右 -1.5 rad/s）。
-- **右摇杆左右 (Axis 3)**：控制左右平移（`linear.y`，推左最大 0.5 m/s，推右 -0.5 m/s）。
-- **LB 键 (Button 4)**：安全使能按键（默认必须按住 LB 键遥控才输出指令，若要取消可将 `require_enable_button` 设为 `false`）。
-- **RB 键 (Button 5)**：提速 Turbo 按键（按住 RB 键可将限速提升至 1.0 m/s / 3.0 rad/s）。
+- **左摇杆上下 (Axis 1)**：控制 `linear.x`；上为负值，下为正值。
+- **左摇杆左右 (Axis 0)**：控制 `angular.z`；左为负值，右为正值。
+- **D-pad 上/下/左/右按钮 (Button 12/13/14/15)**：分别控制 `+linear.x`、`-linear.x`、`+linear.y`、`-linear.y`。
+- **D-pad 轴兼容输入 (Axis 6/7)**：水平轴为 `Axis 6`，垂直轴为 `Axis 7`；按钮没有输入时自动回退到轴。
+- **方向键速度**：普通模式默认 `0.5 m/s`，Turbo 模式默认 `1.0 m/s`；可通过 `dpad_speed` 和 `dpad_turbo_speed` 调整。
+- **LB 键 (Button 4)**：安全使能按键；默认必须按住 LB 才输出指令。
+- **RB 键 (Button 5)**：Turbo 按键；同时作用于方向键和左摇杆。
+- **右摇杆 (Axis 2/3)**：不参与控制。
+- D-pad 输入优先于左摇杆平移；同时按相反方向时分量抵消，同时按相邻方向时支持斜向平移。
 
 
-输出话题已被重映射至 `/mecanum_drive_controller/reference`（消息类型：`geometry_msgs/msg/TwistStamped`）。
+输出话题为 `/mecanum_drive_controller/reference`（消息类型：`geometry_msgs/msg/TwistStamped`）。可编辑映射图见 [docs/xbox_手柄映射.drawio](../../docs/xbox_手柄映射.drawio)，PNG 预览见 [docs/xbox_手柄映射.png](../../docs/xbox_手柄映射.png)。
 
 ## 键盘遥控注意事项
 
@@ -119,7 +125,7 @@ ros2 run tf2_ros tf2_echo odom base_footprint
 - `robot_localization`（可选 EKF 融合，启用 `use_ekf:=true` 时必需）
 - `libi2c-dev`、`i2c-tools`（MPU6050 构建、I2C 总线探测与实机验证）
 - `rosbridge_server`（WebSocket 桥接服务）
-- `joy`、`teleop_twist_joy`（Xbox 手柄遥控支持）
+- `joy`（Xbox 手柄输入）
 - `motor_driver`（实机模式；本仓库同级包）
 
 ## 许可证

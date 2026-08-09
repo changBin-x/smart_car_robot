@@ -1,4 +1,4 @@
-# Xbox 手柄与 teleop_twist_joy 参数配置文件
+# Xbox 手柄与统一遥控节点参数配置文件
 joy_node:
   ros__parameters:
     device_id: 0
@@ -6,30 +6,32 @@ joy_node:
     deadzone: 0.05
     autorepeat_rate: 20.0
 
-teleop_twist_joy_node:
+joystick_teleop_node:
   ros__parameters:
-    # 左右摇杆与按键映射
-    axis_linear:
-      x: 1                    # 左摇杆上下控制前后移动 (Axis 1)
-      y: 3                    # 右摇杆左右控制左右平移 (Axis 3)
-    scale_linear:
-      x: 0.5                  # 普通模式前后最大线速度 (m/s)
-      y: 0.5                  # 普通模式左右平移最大线速度 (m/s)
-    scale_linear_turbo:
-      x: 1.0                  # 加速模式前后最大线速度 (m/s)
-      y: 1.0                  # 加速模式左右平移最大线速度 (m/s)
+    # 左摇杆映射：Axis 1 前后，Axis 0 旋转；右摇杆不参与控制。
+    axis_linear_x: 1
+    axis_angular_z: 0
+    linear_x_scale: 0.5        # 左摇杆普通模式线速度 (m/s)
+    linear_x_turbo_scale: 1.0  # 左摇杆 Turbo 模式线速度 (m/s)
+    angular_z_scale: 1.5       # 左摇杆普通模式角速度 (rad/s)
+    angular_z_turbo_scale: 3.0 # 左摇杆 Turbo 模式角速度 (rad/s)
 
-    axis_angular:
-      yaw: 0                  # 左摇杆左右控制旋转/转弯 (Axis 0)
-    scale_angular:
-      yaw: 1.5                # 普通模式最大角速度 (rad/s)
-    scale_angular_turbo:
-      yaw: 3.0                # 加速模式最大角速度 (rad/s)
+    # D-pad 按钮为主输入，D-pad 轴为兼容回退输入。
+    dpad_mode: auto
+    dpad_axis_horizontal: 6
+    dpad_axis_vertical: 7
+    dpad_button_up: 12
+    dpad_button_down: 13
+    dpad_button_left: 14
+    dpad_button_right: 15
+    dpad_deadzone: 0.5
+    dpad_speed: 0.5        # 方向键普通模式恒定平移速度 (m/s)
+    dpad_turbo_speed: 1.0  # 方向键 Turbo 模式恒定平移速度 (m/s)
 
-    enable_button: 4          # LB 按键使能 (Button 4)
+    enable_button: 4       # LB 按键使能 (Button 4)
     require_enable_button: true
-    enable_turbo_button: 5    # RB 按键加速 (Button 5)
+    enable_turbo_button: 5 # RB 按键加速 (Button 5)
 
-    publish_stamped_twist: true  # Jazzy mecanum_drive_controller 需要 TwistStamped
-    frame_id: "base_footprint"
-
+    input_timeout: 0.5
+    publish_rate: 20.0
+    frame_id: base_footprint

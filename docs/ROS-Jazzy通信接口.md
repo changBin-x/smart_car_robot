@@ -16,7 +16,7 @@ Linux 手柄设备 (/dev/input/jsX)
     joy_node
         │  sensor_msgs/Joy (/joy)
         ▼
-teleop_twist_joy_node / ros-mcp-server / teleop_twist_keyboard / Web UI（控制下发）
+joystick_teleop_node / ros-mcp-server / teleop_twist_keyboard / Web UI（控制下发）
         │  geometry_msgs/TwistStamped
         ▼
 mecanum_drive_controller ──► /mecanum_drive_controller/odometry（原始轮速里程计）
@@ -79,7 +79,7 @@ controller_manager / MecanumSystemHardware (motor_driver)
 | `/mpu6050_sensor` | 节点 | MPU6050 IMU 驱动，发布 `/imu/data_raw` |
 | `/ekf_filter_node_odom` | 节点 | `robot_localization` EKF 融合节点；显式 `use_ekf:=true` 时启动，输出 `/odometry/filtered` 与 `odom -> base_footprint` |
 | `/joy_node` | 节点 | Linux 游戏手柄接入驱动（`joy` 包），发布 `/joy` |
-| `/teleop_twist_joy_node` | 节点 | 手柄遥控转换节点（`teleop_twist_joy` 包），解析 `/joy` 转为 `TwistStamped` |
+| `/joystick_teleop_node` | 节点 | 项目手柄遥控节点，解析 `/joy`，支持 Xbox D-pad 恒速平移、左摇杆前进与旋转，并转为 `TwistStamped` |
 | `/web_telemetry_adapter` | 节点 | 订阅 `/mecanum_drive_controller/odometry`，发布 `/web/telemetry/twist` 与 `/web/telemetry/pose` 供 Web 侧消费 |
 | `/rosbridge_websocket` | 节点 | WebSocket 通信桥接服务（端口 `9090`，`rosbridge_server` 包），供 Web 上层下发控制并订阅轻量遥测接口 |
 | ros-mcp-server / teleop | 外部 | 向 `/mecanum_drive_controller/reference` 下发速度指令 |
@@ -92,7 +92,7 @@ controller_manager / MecanumSystemHardware (motor_driver)
 
 | 话题 (Topic) | 消息类型 (Type) | 方向 | 典型频率 | 发布方 | 含义 |
 |---|---|---|---|---|---|
-| `/mecanum_drive_controller/reference` | `geometry_msgs/msg/TwistStamped` | 订阅 | 由发布方决定（遥控建议 ≥ 10 Hz） | `teleop_twist_joy_node` / MCP / `teleop_twist_keyboard` / WebSocket | 期望车体速度；超时 `reference_timeout=0.5 s` 后清零 |
+| `/mecanum_drive_controller/reference` | `geometry_msgs/msg/TwistStamped` | 订阅 | 由发布方决定（遥控建议 ≥ 10 Hz） | `joystick_teleop_node` / MCP / `teleop_twist_keyboard` / WebSocket | 期望车体速度；超时 `reference_timeout=0.5 s` 后清零 |
 | `/mecanum_drive_controller/odometry` | `nav_msgs/msg/Odometry` | 发布 | ~50 Hz | `mecanum_drive_controller` | 原始轮速积分里程计；作为 EKF 的 `odom0` 输入，也作为 Web 遥测适配器输入 |
 | `/imu/data_raw` | `sensor_msgs/msg/Imu` | 发布 | ~100 Hz | `mpu6050_sensor` | MPU6050 原始 IMU 数据；`frame_id=base_link`，作为 EKF 的 `imu0` 输入 |
 | `/odometry/filtered` | `nav_msgs/msg/Odometry` | 发布 | ~30 Hz | `ekf_filter_node_odom` | 轮速里程计与 MPU6050 融合后的局部里程计输出；仅在 `use_ekf:=true` 时存在 |
@@ -206,9 +206,15 @@ ros2 launch smartcar_bringup joy_teleop.launch.py joy_dev:=/dev/input/js0
 |---|---|---|---|---|
 | **前后移动 (`linear.x`)** | 左摇杆上下 | Axis 1 (`axis_linear.x: 1`) | 0.5 m/s | 1.0 m/s |
 | **转弯 / 旋转 (`angular.z`)** | 左摇杆左右 | Axis 0 (`axis_angular.yaw: 0`) | 1.5 rad/s | 3.0 rad/s |
-| **左右平移 (`linear.y`)** | 右摇杆左右 | Axis 3 (`axis_linear.y: 3`) | 0.5 m/s | 1.0 m/s |
+| **前进 (`linear.x`)** | D-pad 上 | Button 12；轴回退为 Vertical Axis 7（上为负） | 0.5 m/s | 1.0 m/s |
+| **后退 (`linear.x`)** | D-pad 下 | Button 13；轴回退为 Vertical Axis 7（下为正） | 0.5 m/s | 1.0 m/s |
+| **左平移 (`linear.y`)** | D-pad 左 | Button 14；轴回退为 Horizontal Axis 6（左为负） | 0.5 m/s | 1.0 m/s |
+| **右平移 (`linear.y`)** | D-pad 右 | Button 15；轴回退为 Horizontal Axis 6（右为正） | 0.5 m/s | 1.0 m/s |
 | **安全使能按键** | 按住 LB 键 | Button 4 (`enable_button: 4`) | 必需按住才输出指令 | 必需按住才输出指令 |
 | **提速 Turbo 按键** | 按住 RB 键 | Button 5 (`enable_turbo_button: 5`) | - | 切换至加速模式限速 |
+
+D-pad 是数字恒速控制，斜向同时按下两个方向时会同时输出 `linear.x` 和
+`linear.y`；相反方向同时按下时对应分量抵消。右摇杆 Axis 2/3 不参与平移控制。
 
 ---
 
@@ -356,6 +362,7 @@ ros2 control list_hardware_interfaces
 - EKF 融合依赖系统包 `ros-jazzy-robot-localization`，实车启用 `use_ekf:=true` 前必须安装。
 - `ros2_mpu6050` 以普通源码包形式纳入 `src/`（非 Git Submodule），克隆仓库后直接 `colcon build` 即可；树莓派需安装 `libi2c-dev`。
 - `smartcar.launch.py` 在 `use_mock_hardware:=false` 时自动启动 `mpu6050_sensor`；WSL2 mock 模式跳过 IMU。
+- `joystick_teleop_node` 的 D-pad 按钮索引默认是上/下/左/右 `12/13/14/15`，轴回退索引是水平/垂直 `6/7`；速度在 `xbox_teleop.yaml` 中配置。
 - `smartcar.launch.py` 的 `use_ekf` 默认 `false`；mock 模式和普通实车 bringup 都不会默认启动 EKF。
 
 ---
@@ -368,7 +375,7 @@ ros2 control list_hardware_interfaces
 | 2026-08-04 | 补充 `robot_localization` EKF 融合链路：`/mecanum_drive_controller/odometry` 与 `/imu/data_raw` 输入，`/odometry/filtered` 输出，明确 `odom -> base_footprint` 由 EKF 发布、`base_footprint -> base_link` 由 URDF 静态连接 |
 | 2026-08-06 | 补充地面直行定位验证：记录 `count_multiplier=4` 的实测尺度误差，并说明 `odom.y` 必须结合起始 yaw 换算，增加 EKF `/set_pose` 归零服务 |
 | 2026-08-04 | 新增 `web_telemetry_adapter` 节点说明；补充 `/web/telemetry/twist` 与轻量位姿遥测话题；明确 Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，以规避 `rosbridge` 序列化 `Odometry` 异常 |
-| 2026-07-23 | 全面重构通信接口说明：补充 `joy_node` 与 `teleop_twist_joy_node` 节点拓扑及 `/joy` 话题表；补充 `/rosbridge_websocket` 服务节点（端口 `9090`）；新增 §5 Xbox 手柄遥控接口章；更新底层麦轮运动学几何参数与投影和数值；按 `/chinese-documentation` 规范化排版 |
+| 2026-08-09 | 手柄遥控改为项目内 `joystick_teleop_node`，增加 Xbox D-pad 恒速平移、YAML 索引配置和映射图 |
 | 2026-07-21 | MPU6050 改为源码纳入；节点读取 `i2c_*` 参数；`smartcar.launch.py` 实机启 IMU |
 | 2026-07-21 | 新增 MPU6050 IMU 接口说明（§6） |
 | 2026-07-19 | 初版：补充电池 `/battery_state`、方向标定结论与完整话题表 |
