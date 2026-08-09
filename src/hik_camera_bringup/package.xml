@@ -17,6 +17,7 @@
   <exec_depend>launch_ros</exec_depend>
   <depend>opencv4</depend>
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <exec_depend>usb_cam</exec_depend>

@@ -16,7 +16,8 @@ from launch import LaunchContext, LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch_ros.actions import ComposableNodeContainer, Node
+from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
@@ -44,14 +45,14 @@ def _parse_boolean(value: str, argument_name: str) -> bool:
     )
 
 
-def _create_camera_nodes(context: LaunchContext) -> List[Node]:
+def _create_camera_nodes(context: LaunchContext) -> List[object]:
     """根据启动上下文创建相机与可选 Web 预览节点。
 
     Args:
         context: ROS 2 launch 的运行时上下文。
 
     Returns:
-        要加入 LaunchDescription 的节点列表。
+        要加入 LaunchDescription 的容器和节点列表。
     """
     use_cpu_affinity = LaunchConfiguration("use_cpu_affinity")
     camera_cpu_core = LaunchConfiguration("camera_cpu_core")
@@ -80,22 +81,30 @@ def _create_camera_nodes(context: LaunchContext) -> List[Node]:
         # taskset 是普通优先级下的可选隔离措施；FIFO 仅能经 systemd 明确启用。
         camera_prefix = ["taskset", "-c", camera_cpu_core.perform(context)]
 
-    usb_cam_node = Node(
-        package="usb_cam",
-        executable="usb_cam_node_exe",
-        name="usb_cam",
-        namespace="/hik_monocular/driver",
-        output="screen",
-        parameters=[camera_parameters],
-        prefix=camera_prefix,
-    )
-    decoder_node = Node(
-        package="hik_camera_bringup",
-        executable="hik_mjpeg_decoder_node",
-        name="hik_mjpeg_decoder_node",
+    camera_container = ComposableNodeContainer(
+        package="rclcpp_components",
+        executable="component_container_mt",
+        name="hik_camera_container",
         namespace="/hik_monocular",
         output="screen",
-        parameters=[decoder_parameters],
+        prefix=camera_prefix,
+        composable_node_descriptions=[
+            ComposableNode(
+                package="usb_cam",
+                plugin="usb_cam::UsbCamNode",
+                name="usb_cam",
+                namespace="driver",
+                parameters=[camera_parameters],
+                extra_arguments=[{"use_intra_process_comms": True}],
+            ),
+            ComposableNode(
+                package="hik_camera_bringup",
+                plugin="hik_camera_bringup::HikMjpegDecoderNode",
+                name="hik_mjpeg_decoder_node",
+                parameters=[decoder_parameters],
+                extra_arguments=[{"use_intra_process_comms": True}],
+            ),
+        ],
     )
     web_video_node = Node(
         package="web_video_server",
@@ -113,7 +122,7 @@ def _create_camera_nodes(context: LaunchContext) -> List[Node]:
             }
         ],
     )
-    return [usb_cam_node, decoder_node, web_video_node]
+    return [camera_container, web_video_node]
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -122,12 +131,12 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             "use_cpu_affinity",
             default_value="false",
-            description="是否通过 taskset 将 usb_cam 绑定到指定 CPU 核",
+            description="是否通过 taskset 将相机组件容器绑定到指定 CPU 核",
         ),
         DeclareLaunchArgument(
             "camera_cpu_core",
             default_value="2",
-            description="use_cpu_affinity:=true 时 usb_cam 绑定的 CPU 核编号",
+            description="use_cpu_affinity:=true 时相机组件容器绑定的 CPU 核编号",
         ),
         DeclareLaunchArgument(
             "use_web_preview",

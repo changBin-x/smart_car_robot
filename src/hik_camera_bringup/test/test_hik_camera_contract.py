@@ -80,11 +80,14 @@ def test_initial_calibration_warns_about_perception_use() -> None:
 
 
 def test_launch_is_namespaced_and_preview_is_opt_in() -> None:
-    """相机 Launch 必须隔离接口，且默认不启动 Web 视频服务。"""
+    """相机 Launch 必须进程内组合，并隔离外部接口和可选预览。"""
     launch_text = LAUNCH.read_text(encoding="utf-8")
 
-    assert 'namespace="/hik_monocular/driver"' in launch_text
-    assert 'executable="hik_mjpeg_decoder_node"' in launch_text
+    assert "ComposableNodeContainer" in launch_text
+    assert 'plugin="usb_cam::UsbCamNode"' in launch_text
+    assert 'plugin="hik_camera_bringup::HikMjpegDecoderNode"' in launch_text
+    assert '"use_intra_process_comms": True' in launch_text
+    assert 'namespace="driver"' in launch_text
     assert 'namespace="/hik_monocular"' in launch_text
     assert (
         '"use_web_preview",\n'

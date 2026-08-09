@@ -57,4 +57,5 @@ def test_camera_docs_describe_the_validated_mjpeg_bridge() -> None:
     for document in (package_document, root_document):
         assert "/hik_monocular/driver/image_raw" in document
         assert "/hik_monocular/image_raw" in document
-        assert "bgr8" in document
+        assert "/hik_monocular/image_raw/compressed" in document
+        assert "进程内" in document

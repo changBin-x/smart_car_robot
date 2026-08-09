@@ -9,6 +9,7 @@ find_package(ament_cmake REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS imgcodecs)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
@@ -24,31 +25,37 @@ target_include_directories(
     $<INSTALL_INTERFACE:include>
 )
 
-add_executable(
-  hik_mjpeg_decoder_node
+add_library(
+  hik_mjpeg_decoder_component
+  SHARED
   src/hik_mjpeg_decoder_node.cc
 )
-target_compile_features(hik_mjpeg_decoder_node PUBLIC cxx_std_20)
+target_compile_features(hik_mjpeg_decoder_component PUBLIC cxx_std_20)
 target_include_directories(
-  hik_mjpeg_decoder_node
+  hik_mjpeg_decoder_component
   PRIVATE include
 )
 target_link_libraries(
-  hik_mjpeg_decoder_node
+  hik_mjpeg_decoder_component
   jpeg_frame_validator
   ${OpenCV_LIBS}
 )
 ament_target_dependencies(
-  hik_mjpeg_decoder_node
+  hik_mjpeg_decoder_component
   cv_bridge
   rclcpp
+  rclcpp_components
   sensor_msgs
   std_msgs
+)
+rclcpp_components_register_nodes(
+  hik_mjpeg_decoder_component
+  "hik_camera_bringup::HikMjpegDecoderNode"
 )
 
 # 安装相机桥接节点和运行时资源，供 ROS 2 运行时定位。
 install(
-  TARGETS hik_mjpeg_decoder_node jpeg_frame_validator
+  TARGETS hik_mjpeg_decoder_component jpeg_frame_validator
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}

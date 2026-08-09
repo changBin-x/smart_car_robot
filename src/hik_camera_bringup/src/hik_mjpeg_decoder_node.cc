@@ -19,8 +19,10 @@
 #include "cv_bridge/cv_bridge.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp_components/register_node_macro.hpp"
 #include "sensor_msgs/image_encodings.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
+#include "sensor_msgs/msg/compressed_image.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "std_msgs/msg/header.hpp"
 
@@ -35,8 +37,8 @@ constexpr int64_t kWarningThrottleMs = 5000;
 
 class HikMjpegDecoderNode final : public rclcpp::Node {
  public:
-  HikMjpegDecoderNode()
-      : Node("hik_mjpeg_decoder_node"),
+  explicit HikMjpegDecoderNode(const rclcpp::NodeOptions& options)
+      : Node("hik_mjpeg_decoder_node", options),
         expected_image_width_(declare_parameter<int>(
             "expected_image_width", 1920)),
         expected_image_height_(declare_parameter<int>(
@@ -45,7 +47,10 @@ class HikMjpegDecoderNode final : public rclcpp::Node {
             "image_raw", rclcpp::SensorDataQoS().keep_last(1))),
         camera_info_publisher_(
             create_publisher<sensor_msgs::msg::CameraInfo>(
-                "camera_info", rclcpp::SensorDataQoS().keep_last(1))) {
+                "camera_info", rclcpp::SensorDataQoS().keep_last(1))),
+        compressed_image_publisher_(
+            create_publisher<sensor_msgs::msg::CompressedImage>(
+                "image_raw/compressed", rclcpp::SensorDataQoS().keep_last(1))) {
     if (expected_image_width_ <= 0 || expected_image_height_ <= 0) {
       throw std::invalid_argument(
           "expected_image_width 和 expected_image_height 必须为正数");
@@ -70,7 +75,7 @@ class HikMjpegDecoderNode final : public rclcpp::Node {
   }
 
   /** @brief 校验、解码单帧 MJPEG 数据并发布标准 BGR 图像。 */
-  void OnRawMjpegImage(const sensor_msgs::msg::Image::SharedPtr raw_image) {
+  void OnRawMjpegImage(sensor_msgs::msg::Image::UniquePtr raw_image) {
     const std::optional<std::span<const uint8_t>> jpeg_frame =
         FindJpegFrame(raw_image->data);
     if (!jpeg_frame.has_value()) {
@@ -88,6 +93,19 @@ class HikMjpegDecoderNode final : public rclcpp::Node {
       return;
     }
 
+    sensor_msgs::msg::CompressedImage::UniquePtr compressed_message =
+        std::make_unique<sensor_msgs::msg::CompressedImage>();
+    compressed_message->header = raw_image->header;
+    compressed_message->format = "jpeg";
+    compressed_message->data.assign(jpeg_frame->begin(), jpeg_frame->end());
+    compressed_image_publisher_->publish(std::move(compressed_message));
+    PublishCameraInfo(raw_image->header);
+
+    if (image_publisher_->get_subscription_count() == 0U) {
+      return;
+    }
+
+    // imdecode 只读取压缩字节；raw_image 在回调结束前保持所有权有效。
     const cv::Mat encoded_frame(
         1, static_cast<int>(jpeg_frame->size()), CV_8UC1,
         const_cast<uint8_t*>(jpeg_frame->data()));
@@ -114,8 +132,7 @@ class HikMjpegDecoderNode final : public rclcpp::Node {
         cv_bridge::CvImage(raw_image->header, sensor_msgs::image_encodings::BGR8,
                            decoded_image)
             .toImageMsg();
-    image_publisher_->publish(*decoded_message);
-    PublishCameraInfo(decoded_message->header);
+    image_publisher_->publish(std::move(decoded_message));
   }
 
   /** @brief 以当前图像时间戳发布最近接收的 CameraInfo。 */
@@ -139,6 +156,8 @@ class HikMjpegDecoderNode final : public rclcpp::Node {
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr
       camera_info_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr
+      compressed_image_publisher_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr
       camera_info_subscription_;
@@ -148,17 +167,4 @@ class HikMjpegDecoderNode final : public rclcpp::Node {
 
 }  // namespace hik_camera_bringup
 
-int main(int argc, char* argv[]) {
-  rclcpp::init(argc, argv);
-  try {
-    rclcpp::spin(
-        std::make_shared<hik_camera_bringup::HikMjpegDecoderNode>());
-  } catch (const std::exception& error) {
-    RCLCPP_FATAL(rclcpp::get_logger("hik_mjpeg_decoder_node"),
-                 "相机桥接节点启动失败：%s", error.what());
-    rclcpp::shutdown();
-    return 1;
-  }
-  rclcpp::shutdown();
-  return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(hik_camera_bringup::HikMjpegDecoderNode)
