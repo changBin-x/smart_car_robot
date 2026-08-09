@@ -20,10 +20,10 @@ joystick_teleop_node:
     dpad_mode: auto
     dpad_axis_horizontal: 6
     dpad_axis_vertical: 7
-    dpad_button_up: 13
-    dpad_button_down: 12
-    dpad_button_left: 15
-    dpad_button_right: 14
+    dpad_button_up: 12
+    dpad_button_down: 13
+    dpad_button_left: 14
+    dpad_button_right: 15
     dpad_deadzone: 0.5
     dpad_speed: 0.5        # 方向键普通模式恒定平移速度 (m/s)
     dpad_turbo_speed: 1.0  # 方向键 Turbo 模式恒定平移速度 (m/s)

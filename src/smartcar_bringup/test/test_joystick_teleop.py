@@ -5,11 +5,25 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 
+import yaml
+
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts"
+CONFIG_PATH = Path(__file__).resolve().parents[1] / "config/xbox_teleop.yaml"
 sys.path.insert(0, str(SCRIPT_PATH))
 
 from joystick_teleop import JoystickConfig, compute_command  # noqa: E402
+
+
+def test_yaml_dpad_button_indices_match_xbox_controller() -> None:
+    """YAML 必须保持实测的 Xbox D-pad 按钮索引顺序。"""
+    config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    parameters = config["joystick_teleop_node"]["ros__parameters"]
+
+    assert parameters["dpad_button_up"] == 12
+    assert parameters["dpad_button_down"] == 13
+    assert parameters["dpad_button_left"] == 14
+    assert parameters["dpad_button_right"] == 15
 
 
 def make_joy(*, axes=None, buttons=None):
