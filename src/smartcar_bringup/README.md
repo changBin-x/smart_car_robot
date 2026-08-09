@@ -83,13 +83,13 @@ ros2 launch smartcar_bringup joy_teleop.launch.py joy_dev:=/dev/input/js0
 
 - **左摇杆上下 (Axis 1)**：控制 `linear.x`；上为负值，下为正值。
 - **左摇杆左右 (Axis 0)**：控制 `angular.z`；左为负值，右为正值。
-- **D-pad 上/下/左/右按钮 (Button 12/13/14/15)**：分别控制 `+linear.x`、`-linear.x`、`+linear.y`、`-linear.y`。
-- **D-pad 轴兼容输入 (Axis 6/7)**：水平轴为 `Axis 6`，垂直轴为 `Axis 7`；按钮没有输入时自动回退到轴。
+- **当前 Xbox D-pad 轴输入**：实测 `/joy.buttons` 长度为 11，方向键使用水平 `Axis 6` 和垂直 `Axis 7`；上为 `Axis 7=+1`，下为 `Axis 7=-1`，左为 `Axis 6=-1`，右为 `Axis 6=+1`。
+- **D-pad 按钮兼容输入**：其他手柄可用上/下/左/右 `Button 12/13/14/15`，并将 `dpad_mode` 改为 `buttons` 或 `auto`；当前 Xbox 配置不使用这组按钮索引。
 - **方向键速度**：普通模式默认 `0.5 m/s`，Turbo 模式默认 `1.0 m/s`；可通过 `dpad_speed` 和 `dpad_turbo_speed` 调整。
 - **LB 键 (Button 4)**：安全使能按键；默认必须按住 LB 才输出指令。
 - **RB 键 (Button 5)**：Turbo 按键；同时作用于方向键和左摇杆。
 - **右摇杆 (Axis 2/3)**：不参与控制。
-- D-pad 输入优先于左摇杆平移；同时按相反方向时分量抵消，同时按相邻方向时支持斜向平移。
+- D-pad 轴输入优先于左摇杆平移；同时按相反方向时分量抵消，同时按相邻方向时支持斜向平移。
 
 
 输出话题为 `/mecanum_drive_controller/reference`（消息类型：`geometry_msgs/msg/TwistStamped`）。可编辑映射图见 [docs/xbox_手柄映射.drawio](../../docs/xbox_手柄映射.drawio)，PNG 预览见 [docs/xbox_手柄映射.png](../../docs/xbox_手柄映射.png)。

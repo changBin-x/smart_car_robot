@@ -145,7 +145,7 @@ def _read_dpad(joy: Any, config: JoystickConfig) -> tuple[int, int, bool]:
     has_button_input = any(button_values)
     if config.dpad_mode in ("auto", "buttons") and has_button_input:
         linear_x = button_values[0] - button_values[1]
-        linear_y = button_values[2] - button_values[3]
+        linear_y = button_values[3] - button_values[2]
         return _sign(linear_x), _sign(linear_y), True
 
     if config.dpad_mode == "buttons":
@@ -160,8 +160,8 @@ def _read_dpad(joy: Any, config: JoystickConfig) -> tuple[int, int, bool]:
     if not has_axis_input:
         return 0, 0, False
 
-    # Xbox D-pad 轴通常是：上为 -1、下为 +1、左为 -1、右为 +1。
-    return _sign(-vertical), _sign(-horizontal), True
+    # 当前 Xbox joy_node 输出：上为 +1、下为 -1、左为 -1、右为 +1。
+    return _sign(vertical), _sign(horizontal), True
 
 
 def compute_command(

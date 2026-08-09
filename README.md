@@ -115,7 +115,7 @@ graph TD
 - **joint_state_broadcaster**：把 8 个状态接口转发为 `/joint_states`。
 - **web_telemetry_adapter**：订阅 `/mecanum_drive_controller/odometry`，提取平面速度与二维位姿，发布 `/web/telemetry/twist` 和 `/web/telemetry/pose` 供 Web UI 订阅。位姿消息使用保留时间戳和坐标系的 `geometry_msgs/msg/PoseStamped`。
 - **rosbridge_server**：启动 WebSocket 服务（包含 `rosbridge_websocket_launch.xml`），默认监听端口 `9090`。Web UI 不再直接订阅 `/mecanum_drive_controller/odometry`，而是通过 `/web/telemetry/*` 消费轻量遥测数据。
-- **Xbox 手柄遥控**：启动 `joy_node` 接入 `/dev/input/js0` 设备，由单一 `joystick_teleop_node` 统一处理左摇杆、D-pad、LB 安全使能和 RB Turbo，并输出 `TwistStamped`。方向键以恒定速度控制前后和左右平移，右摇杆不参与控制。详细映射见 [Xbox 手柄映射图](docs/xbox_手柄映射.png)。
+- **Xbox 手柄遥控**：启动 `joy_node` 接入 `/dev/input/js0` 设备，由单一 `joystick_teleop_node` 统一处理左摇杆、D-pad、LB 安全使能和 RB Turbo，并输出 `TwistStamped`。当前实测手柄使用 `Axis 6/7` 的方向键轴输入（上 `+1`、下 `-1`、左 `-1`、右 `+1`），以恒定速度控制前后和左右平移；右摇杆不参与控制。详细映射见 [Xbox 手柄映射图](docs/xbox_手柄映射.png)。
 - **motor_driver**：读——解析驱动板周期上报的编码器计数，换算 rad / rad/s；
   写——把 rad/s 命令换算为 mm/s 下发 `$spd` 指令。详见 [motor_driver/README.md](src/motor_driver/README.md)。
 - **mock 模式**（WSL2）：`<ros2_control>` 内换用 `mock_components/GenericSystem`，

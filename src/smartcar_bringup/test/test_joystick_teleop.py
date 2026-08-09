@@ -15,11 +15,16 @@ sys.path.insert(0, str(SCRIPT_PATH))
 from joystick_teleop import JoystickConfig, compute_command  # noqa: E402
 
 
-def test_yaml_dpad_button_indices_match_xbox_controller() -> None:
-    """YAML 必须保持实测的 Xbox D-pad 按钮索引顺序。"""
+def test_yaml_uses_real_xbox_dpad_axes() -> None:
+    """YAML 必须使用实测 Xbox 手柄的 D-pad 轴输入。"""
     config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
     parameters = config["joystick_teleop_node"]["ros__parameters"]
 
+    assert parameters["dpad_mode"] == "axes"
+    assert parameters["dpad_axis_horizontal"] == 6
+    assert parameters["dpad_axis_vertical"] == 7
+
+    # 保留其他手柄使用按钮 D-pad 时的兼容索引，但当前 Xbox 不走这条路径。
     assert parameters["dpad_button_up"] == 12
     assert parameters["dpad_button_down"] == 13
     assert parameters["dpad_button_left"] == 14
@@ -52,16 +57,35 @@ def test_dpad_buttons_map_cardinal_translation() -> None:
     left = [0] * 15
     left[14] = 1
     result = compute_command(make_enabled_joy(buttons=left), config, 1.0, 1.0)
-    assert (result.linear_x, result.linear_y) == (0.0, 0.5)
+    assert (result.linear_x, result.linear_y) == (0.0, -0.5)
 
 
 def test_dpad_axis_is_fallback_and_is_digitalized() -> None:
-    """没有按钮输入时，D-pad 轴应回退为恒速方向。"""
+    """没有按钮输入时，D-pad 轴应输出恒速方向。"""
     axes = [0.0] * 8
     axes[6] = -0.8
     axes[7] = -0.9
     result = compute_command(make_enabled_joy(axes=axes), JoystickConfig(), 1.0, 1.0)
-    assert (result.linear_x, result.linear_y) == (0.5, 0.5)
+    assert (result.linear_x, result.linear_y) == (-0.5, -0.5)
+
+
+def test_dpad_axis_matches_real_xbox_signs() -> None:
+    """实测 Xbox D-pad 轴符号必须对应正确的车体平移方向。"""
+    cases = (
+        ({7: 1.0}, (0.5, 0.0)),
+        ({7: -1.0}, (-0.5, 0.0)),
+        ({6: -1.0}, (0.0, -0.5)),
+        ({6: 1.0}, (0.0, 0.5)),
+    )
+
+    for axis_values, expected in cases:
+        axes = [0.0] * 8
+        for index, value in axis_values.items():
+            axes[index] = value
+        result = compute_command(
+            make_enabled_joy(axes=axes), JoystickConfig(), 1.0, 1.0
+        )
+        assert (result.linear_x, result.linear_y) == expected
 
 
 def test_dpad_button_has_priority_over_dpad_axis() -> None:

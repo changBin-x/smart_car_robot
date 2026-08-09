@@ -11,10 +11,10 @@
         <mxCell id="3" value="左摇杆&#xa;Axis 1：前后&#xa;Axis 0：旋转" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
           <mxGeometry x="300" y="80" width="190" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="4" value="D-pad 按钮&#xa;上 12 / 下 13&#xa;左 14 / 右 15" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+        <mxCell id="4" value="D-pad 轴（当前 Xbox）&#xa;水平 Axis 6：左 -1 / 右 +1&#xa;垂直 Axis 7：上 +1 / 下 -1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
           <mxGeometry x="300" y="230" width="190" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="5" value="D-pad 轴兼容&#xa;水平 Axis 6&#xa;垂直 Axis 7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+        <mxCell id="5" value="备用按钮映射&#xa;上/下/左/右 12/13/14/15&#xa;仅其他手柄兼容" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
           <mxGeometry x="300" y="380" width="190" height="100" as="geometry" />
         </mxCell>
         <mxCell id="6" value="LB Button 4&#xa;安全使能&#xa;RB Button 5：Turbo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
@@ -23,7 +23,7 @@
         <mxCell id="7" value="右摇杆&#xa;Axis 2 / Axis 3&#xa;不参与控制" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#666666;" vertex="1" parent="1">
           <mxGeometry x="300" y="680" width="190" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="8" value="joystick_teleop_node&#xa;按钮优先，轴回退&#xa;D-pad 优先于左摇杆平移" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="8" value="joystick_teleop_node&#xa;D-pad 轴优先，按钮可兼容&#xa;D-pad 优先于左摇杆平移" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=16;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="590" y="300" width="230" height="130" as="geometry" />
         </mxCell>
         <mxCell id="9" value="/mecanum_drive_controller/reference&#xa;geometry_msgs/msg/TwistStamped&#xa;linear.x / linear.y / angular.z" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=15;" vertex="1" parent="1">
@@ -38,10 +38,10 @@
         <mxCell id="12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;jumpStyle=arc;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="3" target="8">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="13" value="按钮主输入" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;jumpStyle=arc;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="4" target="8">
+        <mxCell id="13" value="当前轴输入" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;jumpStyle=arc;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="4" target="8">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="14" value="轴回退" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;jumpStyle=arc;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="5" target="8">
+        <mxCell id="14" value="备用按钮" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;jumpStyle=arc;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="5" target="8">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="15" value="安全门控" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;jumpStyle=arc;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="1" source="6" target="8">

@@ -16,10 +16,11 @@ joystick_teleop_node:
     angular_z_scale: 1.5       # 左摇杆普通模式角速度 (rad/s)
     angular_z_turbo_scale: 3.0 # 左摇杆 Turbo 模式角速度 (rad/s)
 
-    # D-pad 按钮为主输入，D-pad 轴为兼容回退输入。
-    dpad_mode: auto
+    # 当前 Xbox 手柄只发布 11 个按钮，D-pad 使用 Axis 6/7。
+    dpad_mode: axes
     dpad_axis_horizontal: 6
     dpad_axis_vertical: 7
+    # 兼容其他手柄的按钮索引（当前 Xbox 手柄不使用）。
     dpad_button_up: 12
     dpad_button_down: 13
     dpad_button_left: 14
