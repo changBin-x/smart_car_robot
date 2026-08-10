@@ -99,12 +99,13 @@ def test_launch_is_namespaced_and_preview_is_opt_in() -> None:
 
 
 def test_udev_rule_matches_only_measured_camera() -> None:
-    """别名规则必须同时匹配 VID、PID 和唯一序列号。"""
+    """别名规则必须绑定唯一相机的 V4L2 采集节点。"""
     rule = UDEV_RULE.read_text(encoding="utf-8")
 
     assert 'ATTRS{idVendor}=="2bdf"' in rule
     assert 'ATTRS{idProduct}=="0293"' in rule
     assert 'ATTRS{serial}=="DC474C00_P090100_SN0002"' in rule
+    assert 'ENV{ID_V4L_CAPABILITIES}=="*:capture:*"' in rule
     assert 'SYMLINK+="hik_monocular"' in rule
 
 

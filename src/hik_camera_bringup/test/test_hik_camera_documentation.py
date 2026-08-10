@@ -59,3 +59,13 @@ def test_camera_docs_describe_the_validated_mjpeg_bridge() -> None:
         assert "/hik_monocular/image_raw" in document
         assert "/hik_monocular/image_raw/compressed" in document
         assert "进程内" in document
+
+
+def test_package_document_requires_a_capture_capable_device_alias() -> None:
+    """相机手册必须要求稳定别名解析到 V4L2 采集节点。"""
+    package_document = (
+        ROOT / "src/hik_camera_bringup/doc/验证手册.md"
+    ).read_text(encoding="utf-8")
+
+    assert "ID_V4L_CAPABILITIES" in package_document
+    assert "capture" in package_document
