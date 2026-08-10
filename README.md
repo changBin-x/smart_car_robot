@@ -242,7 +242,21 @@ ls /dev/ttyUSB* /dev/ttyACM*
 
 > 建议：为驱动板做 udev 固定别名（防止多 USB 设备时序号漂移），后续路线图中提供规则示例。
 
-> **摄像机方案**：`usb_cam` 与 `hik_mjpeg_decoder_node` 在同一多线程组件容器内以进程内通信传递内部 `/hik_monocular/driver/image_raw` 的实测 MJPEG `1920×1080@30 fps`，避免原始大帧跨 DDS 拷贝。桥接先校验 JPEG 边界，再发布原生 `/hik_monocular/image_raw/compressed`；`rqt_image_view` 应选择其 `compressed` 传输。只有感知节点订阅 `/hik_monocular/image_raw` 时才按需解码为 `bgr8`，避免显示链路消耗解码预算。相机与 Web 预览默认均关闭。
+> **摄像机方案**：`usb_cam` 与 `hik_mjpeg_decoder_node` 在同一多线程组件容器内以进程内通信传递内部 `/hik_monocular/driver/image_raw` 的实测 MJPEG `1920×1080@30 fps`，避免原始大帧跨 DDS 拷贝。桥接先校验 JPEG 边界，再发布原生 `/hik_monocular/image_raw/compressed`；树莓派实测该话题约 `30.013 Hz`。`rqt_image_view` 应选择其 `compressed` 传输。只有感知节点订阅 `/hik_monocular/image_raw` 时才按需解码为 `bgr8`，避免显示链路消耗解码预算。相机与 Web 预览默认均关闭。
+
+### 相机单实例约束
+
+`/dev/hik_monocular`（实际采集节点为 `/dev/video0`）在任意时刻只能由一个
+相机启动入口打开。以下两种方式必须二选一，不能同时运行：
+
+- 整车启动：`smartcar.launch.py use_hik_camera:=true`。
+- 独立相机启动：`hik_camera.launch.py`。
+
+若日志在 `Starting 'hik_monocular'` 后出现 `Component constructor threw an
+exception`，先不要重复启动。执行 `fuser -v /dev/hik_monocular /dev/video0`
+确认占用进程，并回到该进程所属终端按 `Ctrl+C` 正常退出后再启动。启动日志中
+`unknown control` 警告只表示该 UVC 相机未提供相应可选控制项；当后续出现
+`Timer triggering every 33ms` 且两个组件均加载完成时，不是采集失败。
 
 ## 5. 编译与启动
 
@@ -284,7 +298,7 @@ ros2 launch smartcar_bringup smartcar.launch.py \
 ros2 launch smartcar_bringup smartcar.launch.py \
   use_mock_hardware:=false serial_port:=/dev/ttyUSB0 use_joy:=true
 
-# 树莓派：实机启动并显式启用 USB 单目相机与浏览器预览
+# 树莓派：实机启动并显式启用 USB 单目相机与浏览器预览（不要再独立启动相机）
 ros2 launch smartcar_bringup smartcar.launch.py \
   use_mock_hardware:=false serial_port:=/dev/ttyUSB0 \
   use_hik_camera:=true use_web_preview:=true
@@ -337,9 +351,11 @@ Web 遥测接口约定：
 | `use_hik_camera` | `false` | 是否包含 `hik_camera_bringup` 相机采集链路 |
 | `use_web_preview` | `false` | 仅在已启用相机时，是否启动 `web_video_server` 预览 |
 
-摄像机接口：`/hik_monocular/image_raw`、`/hik_monocular/camera_info` 与
-`/hik_monocular/image_raw/compressed`。浏览器预览使用
-`http://<pi-ip>:8080/stream?topic=/hik_monocular/image_raw&width=640&height=360&quality=70`；该服务仅在 `use_web_preview:=true` 时存在。
+摄像机接口：内部采集接口为 `/hik_monocular/driver/image_raw`；对外实时 JPEG
+接口为 `/hik_monocular/image_raw/compressed`；按需解码的 BGR 图像接口为
+`/hik_monocular/image_raw`；内参接口为 `/hik_monocular/camera_info`。用
+`rqt_image_view` 时选择 `compressed` 传输。浏览器预览使用
+`http://<pi-ip>:8080/stream?topic=/hik_monocular/image_raw&width=640&height=360&quality=70`；该服务订阅按需 BGR 接口，仅在 `use_web_preview:=true` 时存在，不能替代压缩话题的实时性验收。
 
 树莓派额外依赖：
 

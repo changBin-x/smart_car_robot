@@ -14,7 +14,12 @@
 - **MPU6050 坐标约定**：`/imu/data_raw` 的 `frame_id` 为 `base_link`；MPU6050 芯片中心等同 `base_link` 原点，右手系 `+x` 前、`+y` 左、`+z` 上。
 - **WebSocket 通信桥接**：集成 `rosbridge_server`（`rosbridge_websocket_launch.xml`），提供 9090 端口的 WebSocket 接口，方便 Web 端与小车进行交互。
 - **Xbox 手柄遥控控制**：集成 `joy` 与单一 `joystick_teleop` 控制节点，支持左摇杆上下控制前后移动、左摇杆左右控制旋转、D-pad 恒速控制前后与左右平移；右摇杆不参与控制，默认配备 LB 安全使能与 RB Turbo。
-- **可选 USB 单目相机**：`use_hik_camera:=true` 时包含 `hik_camera_bringup`；`usb_cam` 与 `hik_mjpeg_decoder_node` 在同一组件容器内传递原始 MJPEG，桥接向外发布 `/hik_monocular/image_raw/compressed`，只在感知订阅时按需解码 `/hik_monocular/image_raw`（`bgr8`）。相机和 `web_video_server` 预览默认关闭，避免未接硬件或预览负载影响控制栈。
+- **可选 USB 单目相机**：`use_hik_camera:=true` 时包含 `hik_camera_bringup`；`usb_cam` 与 `hik_mjpeg_decoder_node` 在同一组件容器内传递原始 MJPEG，桥接向外发布 `/hik_monocular/image_raw/compressed`，只在感知订阅时按需解码 `/hik_monocular/image_raw`（`bgr8`）。相机和 `web_video_server` 预览默认关闭，避免未接硬件或预览负载影响控制栈。整车启动与独立 `hik_camera.launch.py` 必须二选一，防止两个进程争用 `/dev/hik_monocular`。
+
+若启动日志在 `Starting 'hik_monocular'` 后出现 `Component constructor threw an
+exception`，执行 `fuser -v /dev/hik_monocular /dev/video0` 查找占用者，并在其所属
+终端按 `Ctrl+C` 正常退出后再重试；不要并行重启相机。`rqt_image_view` 应选择
+`/hik_monocular/image_raw` 的 `compressed` 传输，实时性以压缩 JPEG 话题衡量。
 
 ## 目录结构
 

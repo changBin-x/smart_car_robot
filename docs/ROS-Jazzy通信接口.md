@@ -338,15 +338,26 @@ ros2 run tf2_ros tf2_echo odom base_link
 
 ## 8. USB 单目相机接口
 
-`hik_camera_bringup` 使用 `usb_cam` 独占 `/dev/hik_monocular`，采集参数固定为 MJPEG `1920×1080@30 fps` 与 `mmap`。驱动输出 `rgb8`，为后续感知模块提供标准 ROS 2 图像接口。
+`hik_camera_bringup` 使用 `usb_cam` 独占 `/dev/hik_monocular`，采集参数固定为
+MJPEG `1920×1080@30 fps` 与 `mmap`。`usb_cam` 和
+`hik_mjpeg_decoder_node` 在同一组件容器内进程内传递 MJPEG；桥接先校验 JPEG
+边界，再将原始 JPEG 直接发布到对外压缩接口。BGR 图像仅在有订阅者时解码，供
+感知与标定使用。
 
 | 接口 | 消息类型 | 说明 |
 |---|---|---|
-| `/hik_monocular/image_raw` | `sensor_msgs/msg/Image` | 原始 `rgb8` 图像，`frame_id=hik_monocular_optical_frame` |
+| `/hik_monocular/driver/image_raw` | `sensor_msgs/msg/CompressedImage` | 仅进程内使用的原始 MJPEG；不是外部消费者接口 |
+| `/hik_monocular/image_raw/compressed` | `sensor_msgs/msg/CompressedImage` | 桥接校验后的原生 JPEG；实时性验收接口，树莓派实测约 `30.013 Hz` |
+| `/hik_monocular/image_raw` | `sensor_msgs/msg/Image` | 有订阅者时按需解码的 `bgr8` 图像，`frame_id=hik_monocular_optical_frame` |
 | `/hik_monocular/camera_info` | `sensor_msgs/msg/CameraInfo` | 相机内参；完成标定前为受控零值占位，禁止感知使用 |
-| `/hik_monocular/image_raw/compressed` | `sensor_msgs/msg/CompressedImage` | 安装 image transport 插件后可用的压缩传输 |
 
-相机必须显式启用：`use_hik_camera:=true`。浏览器预览也必须单独设置 `use_web_preview:=true`，并使用 `web_video_server` 的 `640×360` 查询参数；预览导致主图像低于 `28 fps` 时应关闭预览。
+相机必须显式启用：`use_hik_camera:=true`。独立相机启动与整车启动必须二选一，
+否则两个进程争用 `/dev/hik_monocular`（实际采集节点为 `/dev/video0`），并可能在
+`Starting 'hik_monocular'` 后报 `Component constructor threw an exception`。先执行
+`fuser -v /dev/hik_monocular /dev/video0` 查找占用者，并在其所属终端按 `Ctrl+C`
+退出。浏览器预览也必须单独设置 `use_web_preview:=true`；它订阅按需 BGR 接口，
+不能用作 `30 fps` MJPEG 链路的验收依据。`rqt_image_view` 应选择 `compressed`
+传输。
 
 ---
 
@@ -385,7 +396,7 @@ ros2 control list_hardware_interfaces
 
 | 日期 | 说明 |
 |---|---|
-| 2026-08-10 | 新增 `usb_cam` 单目相机接口、稳定设备别名、MJPEG 1080P@30 采集契约和可选 Web 预览说明 |
+| 2026-08-10 | 明确 `usb_cam` 进程内 MJPEG 桥接、单实例设备占用、BGR 按需解码及压缩话题 `30.013 Hz` 实测结果 |
 | 2026-08-05 | Web 位姿遥测由 `/web/telemetry/pose2d`（`Pose2D`）迁移为 `/web/telemetry/pose`（`PoseStamped`），保留时间戳和坐标系，避免 `rosbridge_websocket` 序列化异常 |
 | 2026-08-04 | 补充 `robot_localization` EKF 融合链路：`/mecanum_drive_controller/odometry` 与 `/imu/data_raw` 输入，`/odometry/filtered` 输出，明确 `odom -> base_footprint` 由 EKF 发布、`base_footprint -> base_link` 由 URDF 静态连接 |
 | 2026-08-06 | 补充地面直行定位验证：记录 `count_multiplier=4` 的实测尺度误差，并说明 `odom.y` 必须结合起始 yaw 换算，增加 EKF `/set_pose` 归零服务 |

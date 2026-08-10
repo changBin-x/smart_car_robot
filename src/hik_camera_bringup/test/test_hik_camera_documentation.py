@@ -69,3 +69,31 @@ def test_package_document_requires_a_capture_capable_device_alias() -> None:
 
     assert "ID_V4L_CAPABILITIES" in package_document
     assert "capture" in package_document
+
+
+def test_camera_docs_require_a_single_v4l2_owner() -> None:
+    """相机手册必须禁止独立与整车启动入口同时占用同一设备。"""
+    package_document = (
+        ROOT / "src/hik_camera_bringup/doc/验证手册.md"
+    ).read_text(encoding="utf-8")
+    root_document = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    for document in (package_document, root_document):
+        assert "单实例" in document
+        assert "/dev/hik_monocular" in document
+        assert "fuser -v" in document
+
+
+def test_camera_docs_identify_compressed_topic_as_realtime_metric() -> None:
+    """相机手册必须以原生 JPEG 压缩话题作为 30 Hz 性能指标。"""
+    package_document = (
+        ROOT / "src/hik_camera_bringup/doc/验证手册.md"
+    ).read_text(encoding="utf-8")
+    interface_document = (
+        ROOT / "docs/ROS-Jazzy通信接口.md"
+    ).read_text(encoding="utf-8")
+
+    for document in (package_document, interface_document):
+        assert "/hik_monocular/image_raw/compressed" in document
+        assert "30" in document
+        assert "bgr8" in document

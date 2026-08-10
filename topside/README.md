@@ -54,7 +54,7 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-摄像机预览独立于 WebSocket `9090`：浏览器 `<img>` 访问 `web_video_server`，该服务读取 `/hik_monocular/image_raw` 并转码为 MJPEG。
+摄像机预览独立于 WebSocket `9090`：浏览器 `<img>` 访问 `web_video_server`，该服务订阅桥接节点按需发布的 `/hik_monocular/image_raw` BGR 图像并转码为 MJPEG。
 
 ---
 
@@ -147,7 +147,7 @@ ROS 内部调试与算法模块，避免树莓派上的 `rosbridge_websocket` �
 
 ## 摄像机 Web 预览
 
-相机由树莓派的 `usb_cam` 发布 `/hik_monocular/image_raw`，浏览器不通过 rosbridge 传输图像，而是访问独立的 `web_video_server`。主机 IP 默认从导航栏 rosbridge URL 解析（如 `ws://192.168.10.17:9090` → `192.168.10.17`）。
+相机由树莓派的 `usb_cam` 与 `hik_mjpeg_decoder_node` 组件桥接发布图像：原生 JPEG 在 `/hik_monocular/image_raw/compressed`，有消费者时才解码 BGR 到 `/hik_monocular/image_raw`。浏览器不通过 rosbridge 传输图像，而是访问独立的 `web_video_server`；该服务属于 BGR 消费者。主机 IP 默认从导航栏 rosbridge URL 解析（如 `ws://192.168.10.17:9090` → `192.168.10.17`）。
 
 | 用途 | URL | 说明 |
 | --- | --- | --- |
@@ -157,7 +157,7 @@ ROS 内部调试与算法模块，避免树莓派上的 `rosbridge_websocket` �
 
 `CameraView` 发生断流时，`onError` 触发指数退避重连（约 `1 s → 2 s → 4 s`，上限 `8 s`）。请以 HTTP 页面打开上位机；若改为 HTTPS，需处理浏览器混合内容策略。
 
-前置：树莓派已安装 `ros-jazzy-usb-cam`、`ros-jazzy-web-video-server`，并以 `use_hik_camera:=true use_web_preview:=true` 显式启动相机链路。若主图像频率低于 `28 fps`，关闭 `use_web_preview`。
+前置：树莓派已安装 `ros-jazzy-usb-cam`、`ros-jazzy-web-video-server`，并以 `use_hik_camera:=true use_web_preview:=true` 显式启动相机链路。整车启动与独立 `hik_camera.launch.py` 必须二选一；若启动在 `Starting 'hik_monocular'` 后报构造异常，先执行 `fuser -v /dev/hik_monocular /dev/video0`，并在占用终端按 `Ctrl+C` 释放设备。实时性以 `/hik_monocular/image_raw/compressed` 的 `30 fps` MJPEG 链路验证，Web 预览仅用于人工观察；若 BGR 解码负载过高，关闭 `use_web_preview`。
 
 ---
 

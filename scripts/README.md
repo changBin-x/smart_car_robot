@@ -70,7 +70,13 @@ bash scripts/install_hik_camera_system.sh --install-udev --configure-usb-buffer 
 sudo reboot
 ```
 
-重启后，`/dev/hik_monocular` 应指向已绑定序列号的相机。`--install-rt-service` 只安装 FIFO `systemd` 单元，不会自动启用；必须先完成 `usb_cam` 的 `60 s` 基准测试，并确认主图像不低于 `28 fps` 后再人工启用。
+重启后，`/dev/hik_monocular` 应指向具备 `capture` 能力、且已绑定序列号的相机。
+使用 `udevadm info --query=property --name=/dev/hik_monocular | grep
+'^ID_V4L_CAPABILITIES=.*capture'` 验证。`--install-rt-service` 只安装 FIFO
+`systemd` 单元，不会自动启用；必须先完成 `/hik_monocular/image_raw/compressed`
+的 `60 s` 基准测试，并确认平均频率不低于 `28 fps` 后再人工启用。相机为单实例
+设备；若启动失败，先用 `fuser -v /dev/hik_monocular /dev/video0` 找出并正常停止
+已有启动入口，不能同时启动独立相机和整车相机。
 
 ## show_system_info.py
 
