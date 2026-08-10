@@ -87,7 +87,7 @@ def test_launch_is_namespaced_and_preview_is_opt_in() -> None:
     assert 'plugin="usb_cam::UsbCamNode"' in launch_text
     assert 'plugin="hik_camera_bringup::HikMjpegDecoderNode"' in launch_text
     assert '"use_intra_process_comms": True' in launch_text
-    assert 'namespace="driver"' in launch_text
+    assert 'namespace="/hik_monocular/driver"' in launch_text
     assert 'namespace="/hik_monocular"' in launch_text
     assert (
         '"use_web_preview",\n'
