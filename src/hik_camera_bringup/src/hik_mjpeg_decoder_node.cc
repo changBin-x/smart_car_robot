@@ -132,7 +132,7 @@ class HikMjpegDecoderNode final : public rclcpp::Node {
         cv_bridge::CvImage(raw_image->header, sensor_msgs::image_encodings::BGR8,
                            decoded_image)
             .toImageMsg();
-    image_publisher_->publish(std::move(decoded_message));
+    image_publisher_->publish(*decoded_message);
   }
 
   /** @brief 以当前图像时间戳发布最近接收的 CameraInfo。 */
