@@ -388,7 +388,7 @@ ros2 control list_hardware_interfaces
 - `smartcar.launch.py` 在 `use_mock_hardware:=false` 时自动启动 `mpu6050_sensor`；WSL2 mock 模式跳过 IMU。
 - `joystick_teleop_node` 当前默认使用 D-pad 轴模式，水平/垂直索引是 `6/7`；其他手柄的按钮兼容索引为上/下/左/右 `12/13/14/15`；速度在 `xbox_teleop.yaml` 中配置。
 - `smartcar.launch.py` 的 `use_ekf` 默认 `false`；mock 模式和普通实车 bringup 都不会默认启动 EKF。
-- 单目相机依赖 `ros-jazzy-usb-cam`、`ros-jazzy-camera-calibration` 与 `ros-jazzy-image-transport-plugins`；Web 预览额外依赖 `ros-jazzy-web-video-server`。
+- 单目相机依赖 `ros-jazzy-usb-cam`、`ros-jazzy-camera-calibration` 与 `ros-jazzy-image-transport-plugins`；Web 预览额外依赖 `ros-jazzy-web-video-server`。启用 `use_web_preview:=true` 前执行 `sudo apt install -y ros-jazzy-web-video-server`，再用 `ros2 pkg executables web_video_server` 确认可执行文件存在；启动文件会在创建相机组件容器前完成预检。
 
 ---
 

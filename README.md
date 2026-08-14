@@ -235,6 +235,9 @@ sudo apt install -y ros-jazzy-usb-cam ros-jazzy-camera-calibration \
 ls /dev/video*
 groups | grep video
 
+# 启用 use_web_preview:=true 前确认 Web 预览可执行文件已安装
+ros2 pkg executables web_video_server
+
 # 6. 确认驱动板设备名（插上 Type-C 后）
 ls /dev/ttyUSB* /dev/ttyACM*
 # 如果不是 /dev/ttyUSB0，启动时用 serial_port launch 参数覆盖
@@ -243,6 +246,11 @@ ls /dev/ttyUSB* /dev/ttyACM*
 > 建议：为驱动板做 udev 固定别名（防止多 USB 设备时序号漂移），后续路线图中提供规则示例。
 
 > **摄像机方案**：`usb_cam` 与 `hik_mjpeg_decoder_node` 在同一多线程组件容器内以进程内通信传递内部 `/hik_monocular/driver/image_raw` 的实测 MJPEG `1920×1080@30 fps`，避免原始大帧跨 DDS 拷贝。桥接先校验 JPEG 边界，再发布原生 `/hik_monocular/image_raw/compressed`；树莓派实测该话题约 `30.013 Hz`。`rqt_image_view` 应选择其 `compressed` 传输。只有感知节点订阅 `/hik_monocular/image_raw` 时才按需解码为 `bgr8`，避免显示链路消耗解码预算。相机与 Web 预览默认均关闭。
+
+启用 `use_web_preview:=true` 前必须安装 `ros-jazzy-web-video-server`，并用
+`ros2 pkg executables web_video_server` 确认输出 `web_video_server web_video_server`。
+启动文件会在创建相机组件容器前执行依赖预检；依赖缺失时会直接提示安装命令，
+不会再先启动组件后产生 `InvalidHandle` 级联异常。
 
 ### 相机单实例约束
 

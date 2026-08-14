@@ -88,6 +88,10 @@ if(BUILD_TESTING)
     test/test_hik_camera_contract.py
   )
   ament_add_pytest_test(
+    test_web_preview_dependency
+    test/test_web_preview_dependency.py
+  )
+  ament_add_pytest_test(
     test_hik_camera_documentation
     test/test_hik_camera_documentation.py
   )

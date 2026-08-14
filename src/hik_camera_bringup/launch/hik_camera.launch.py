@@ -10,8 +10,11 @@ Description: 独占 V4L2 相机设备，采集原始 MJPEG 并发布标准 Camer
     web_video_server 提供低分辨率 MJPEG 预览。
 """
 
+import os
+from pathlib import Path
 from typing import List
 
+from ament_index_python.packages import PackageNotFoundError, get_package_prefix
 from launch import LaunchContext, LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
@@ -20,6 +23,11 @@ from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+WEB_VIDEO_SERVER_INSTALL_COMMAND = (
+    "sudo apt update && sudo apt install -y ros-jazzy-web-video-server"
+)
 
 
 def _parse_boolean(value: str, argument_name: str) -> bool:
@@ -45,6 +53,34 @@ def _parse_boolean(value: str, argument_name: str) -> bool:
     )
 
 
+def _validate_web_preview_dependency(use_web_preview: bool) -> None:
+    """检查 Web 预览服务是否能在本机启动。
+
+    Args:
+        use_web_preview: 是否请求启动 Web 预览服务。
+
+    Raises:
+        RuntimeError: Web 预览服务的 ROS 包或可执行文件不存在时抛出。
+    """
+    if not use_web_preview:
+        return
+
+    try:
+        package_prefix = Path(get_package_prefix("web_video_server"))
+    except PackageNotFoundError as error:
+        raise RuntimeError(
+            "use_web_preview:=true 需要 ROS 包 web_video_server。请在树莓派执行："
+            f"{WEB_VIDEO_SERVER_INSTALL_COMMAND}"
+        ) from error
+
+    executable = package_prefix / "lib" / "web_video_server" / "web_video_server"
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        raise RuntimeError(
+            "ROS 包 web_video_server 已被索引，但找不到可执行文件："
+            f"{executable}。请重新安装：{WEB_VIDEO_SERVER_INSTALL_COMMAND}"
+        )
+
+
 def _create_camera_nodes(context: LaunchContext) -> List[object]:
     """根据启动上下文创建相机与可选 Web 预览节点。
 
@@ -59,6 +95,11 @@ def _create_camera_nodes(context: LaunchContext) -> List[object]:
     use_web_preview = LaunchConfiguration("use_web_preview")
     web_port = LaunchConfiguration("web_port")
     web_address = LaunchConfiguration("web_address")
+    use_web_preview_enabled = _parse_boolean(
+        use_web_preview.perform(context), "use_web_preview"
+    )
+    # 必须在创建相机容器之前检查 Web 服务，避免依赖错误触发组件容器级联销毁。
+    _validate_web_preview_dependency(use_web_preview_enabled)
     camera_parameters = PathJoinSubstitution(
         [
             FindPackageShare("hik_camera_bringup"),
