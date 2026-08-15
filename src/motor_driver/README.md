@@ -12,6 +12,7 @@
 
 - **三层解耦架构**：硬件接口层、协议层、串口传输层职责分离，协议层可脱离硬件做单元测试。
 - **纯 ASCII 协议**：`$spd:...#` 下发速度，`$MAll`/`$MTEP` 解析编码器上报（详见 [协议总结](../../docs/协议总结.md)）。
+- **配置应答兼容**：死区配置即时 ACK 缺失时，回读 `$read_flash#` 的 `Dead_Zone`；只有回读值匹配目标值才允许硬件继续启动。
 - **完整生命周期**：`on_init / on_configure / on_activate / on_deactivate / on_cleanup / on_shutdown`。
 - **故障容错**：串口打开失败、通信超时、坏帧均返回 `ERROR` 并打日志，不崩溃；`on_deactivate` 与析构时自动发零速停车。
 - **参数全部可配**：串口设备名、波特率、编码器线数、减速比等通过 URDF `<param>` 注入，无硬编码。
@@ -92,7 +93,7 @@ colcon test-result --all
 ```
 
 协议层单元测试在 `test/test_protocol.cpp`，覆盖指令编码、速度钳位、帧拆分
-（半帧/粘连/垃圾字节）与坏帧拒绝，共 17 个用例，无需硬件即可运行。
+（半帧/粘连/垃圾字节）、坏帧拒绝与 Flash 配置回读，共 29 个用例，无需硬件即可运行。
 
 ## 容错行为
 
@@ -102,6 +103,7 @@ colcon test-result --all
 | `read()` 检测到串口错误（如拔线） | 立即返回 `ERROR` |
 | 连续 `max_read_misses` 周期无有效帧 | 返回 `ERROR`，视为通信丢失 |
 | 坏帧 / 校验失败 | 丢弃该帧并打 `DEBUG` 日志，不影响本周期其余帧 |
+| 配置指令缺少即时 ACK | 对死区配置执行 `$read_flash#` 回读；`Dead_Zone` 匹配目标值则继续，否则 `on_configure` 返回 `ERROR` |
 | `on_deactivate` / 析构 | 发送 `$spd:0,0,0,0#` 零速停车 |
 
 ## 许可证

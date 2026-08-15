@@ -112,6 +112,9 @@ private:
   // 发送一条配置指令并等待 "OK" 应答（配置类指令有应答）。
   bool send_config_command(const std::string &command);
 
+  // 回读驱动板 Flash 中的死区值，兼容固件不返回死区即时 ACK 的情况。
+  bool verify_deadzone_from_flash();
+
   // 向驱动板发零速指令（$spd:0,0,0,0#），停车用。
   // 失败只打日志不报错——停车是尽力而为的兜底动作。
   void send_stop_command();

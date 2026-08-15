@@ -252,6 +252,10 @@ ls /dev/ttyUSB* /dev/ttyACM*
 启动文件会在创建相机组件容器前执行依赖预检；依赖缺失时会直接提示安装命令，
 不会再先启动组件后产生 `InvalidHandle` 级联异常。
 
+> **电机板固件兼容**：部分固件（实测 `1.6.5`）对 `$deadzone:1300#` 只保存配置、不返回即时
+> `OK`。`motor_driver` 会在该 ACK 缺失时执行 `$read_flash#`，严格回读 `Dead_Zone`；只有回读值
+> 与目标值一致才继续启动，否则仍会让 `ros2_control` 报错退出，避免掩盖真实配置失败。
+
 ### 相机单实例约束
 
 `/dev/hik_monocular`（实际采集节点为 `/dev/video0`）在任意时刻只能由一个

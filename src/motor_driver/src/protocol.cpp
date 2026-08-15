@@ -14,6 +14,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
+#include <sstream>
 
 namespace motor_driver {
 namespace protocol {
@@ -92,6 +94,8 @@ std::string make_wheel_diameter_command(double diameter_mm) {
 std::string make_deadzone_command(int deadzone) {
   return "$deadzone:" + std::to_string(deadzone) + "#";
 }
+
+std::string make_read_flash_command() { return "$read_flash#"; }
 
 std::string make_read_voltage_command() { return "$read_vol#"; }
 
@@ -192,6 +196,34 @@ std::optional<double> parse_battery_voltage(const std::string &frame) {
     return std::nullopt;
   }
   return volts;
+}
+
+std::optional<int> parse_flash_config_int(const std::string &response,
+                                          const std::string &key) {
+  if (key.empty()) {
+    return std::nullopt;
+  }
+
+  const std::string prefix = key + ":";
+  std::istringstream lines(response);
+  std::string line;
+  while (std::getline(lines, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (line.rfind(prefix, 0) != 0) {
+      continue;
+    }
+
+    const auto value = parse_strict_int(line.substr(prefix.size()));
+    if (!value.has_value() ||
+        *value < std::numeric_limits<int>::min() ||
+        *value > std::numeric_limits<int>::max()) {
+      return std::nullopt;
+    }
+    return static_cast<int>(*value);
+  }
+  return std::nullopt;
 }
 
 } // namespace protocol

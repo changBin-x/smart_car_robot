@@ -42,6 +42,9 @@ constexpr double kDeltaPeriodSec = 0.01;
 // 不在控制循环里，所以可以比 read/write 超时宽松。
 constexpr std::chrono::milliseconds kConfigReplyTimeout{200};
 
+// 某些固件写入死区后不返回即时 ACK，回读 Flash 需要更宽松的窗口。
+constexpr std::chrono::milliseconds kFlashReadTimeout{500};
+
 // 从 <param> 表中取整数/浮点参数的小工具。key 不存在返回默认值；
 // 存在但解析失败返回 nullopt（让上层报错，避免静默用错参数）。
 std::optional<int>
@@ -338,8 +341,21 @@ hardware_interface::CallbackReturn MecanumSystemHardware::on_configure(
       protocol::make_wheel_diameter_command(wheel_radius_m_ * 2000.0),
       protocol::make_deadzone_command(deadzone_),
   };
+  const std::string deadzone_command =
+      protocol::make_deadzone_command(deadzone_);
   for (const auto &command : config_commands) {
     if (!send_config_command(command)) {
+      // 驱动板固件 1.6.5 对 deadzone 写入可能只保存、不返回即时
+      // "OK"。只要 Flash 回读值与当前配置一致，就证明写入成功，
+      // 不应让整车控制栈因 ACK 行为差异而退出。
+      if (command == deadzone_command && verify_deadzone_from_flash()) {
+        RCLCPP_WARN(
+            logger(),
+            "deadzone command '%s' had no direct ACK, but Flash readback "
+            "matches %d; continuing",
+            command.c_str(), deadzone_);
+        continue;
+      }
       RCLCPP_ERROR(logger(), "board did not acknowledge config command '%s'",
                    command.c_str());
       serial_.close();
@@ -368,6 +384,35 @@ bool MecanumSystemHardware::send_config_command(const std::string &command) {
     reply += serial_.read_available(std::chrono::milliseconds(20));
     if (reply.find("OK") != std::string::npos) {
       return true;
+    }
+  }
+  return false;
+}
+
+bool MecanumSystemHardware::verify_deadzone_from_flash() {
+  serial_.flush_buffers();
+  const std::string command = protocol::make_read_flash_command();
+  if (!serial_.write_all(command,
+                         std::chrono::milliseconds(write_timeout_ms_))) {
+    RCLCPP_WARN(logger(), "write '%s' failed: %s", command.c_str(),
+                serial_.last_error().c_str());
+    return false;
+  }
+
+  std::string response;
+  const auto deadline = std::chrono::steady_clock::now() + kFlashReadTimeout;
+  while (std::chrono::steady_clock::now() < deadline) {
+    response += serial_.read_available(std::chrono::milliseconds(20));
+    const auto value =
+        protocol::parse_flash_config_int(response, "Dead_Zone");
+    if (value.has_value()) {
+      if (*value == deadzone_) {
+        return true;
+      }
+      RCLCPP_ERROR(logger(),
+                   "deadzone Flash readback mismatch: expected %d, got %d",
+                   deadzone_, *value);
+      return false;
     }
   }
   return false;

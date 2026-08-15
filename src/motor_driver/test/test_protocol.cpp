@@ -54,6 +54,10 @@ TEST(MakeConfigCommands, MatchProtocolDoc) {
   EXPECT_EQ(make_deadzone_command(1300), "$deadzone:1300#");
 }
 
+TEST(MakeReadFlashCommand, ExactFrame) {
+  EXPECT_EQ(make_read_flash_command(), "$read_flash#");
+}
+
 TEST(MakeWheelDiameterCommand, TwoDecimalPlaces) {
   // 60mm 直径应格式化为 "60.00"，与官方例程格式一致。
   EXPECT_EQ(make_wheel_diameter_command(60.0), "$wdiameter:60.00#");
@@ -173,6 +177,29 @@ TEST(ParseBatteryVoltage, RejectsNonNumeric) {
 
 TEST(ParseBatteryVoltage, RejectsTrailingGarbage) {
   EXPECT_FALSE(parse_battery_voltage("$Battery:7.40xV#").has_value());
+}
+
+// ---------------- 配置回读 ----------------
+
+TEST(ParseFlashConfigInt, ParsesDeadzone) {
+  const std::string response =
+      "read_flash:OK!\r\n"
+      "Motor_Version:1.6.5\r\n"
+      "Motor_type:2\r\n"
+      "Dead_Zone:1300\r\n"
+      "Pulse_Line:13\r\n";
+  const auto value = parse_flash_config_int(response, "Dead_Zone");
+  ASSERT_TRUE(value.has_value());
+  EXPECT_EQ(*value, 1300);
+}
+
+TEST(ParseFlashConfigInt, RejectsMissingOrMalformedValue) {
+  EXPECT_FALSE(parse_flash_config_int("Motor_type:2\r\n", "Dead_Zone")
+                   .has_value());
+  EXPECT_FALSE(parse_flash_config_int("Dead_Zone:1300abc\r\n", "Dead_Zone")
+                   .has_value());
+  EXPECT_FALSE(parse_flash_config_int("Dead_Zone:\r\n", "Dead_Zone")
+                   .has_value());
 }
 
 TEST(FrameAssembler, AssemblesBatteryFrameAcrossChunks) {

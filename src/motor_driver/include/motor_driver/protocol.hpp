@@ -64,6 +64,9 @@ std::string make_gear_ratio_command(int ratio);              // $mphase:xx#
 std::string make_wheel_diameter_command(double diameter_mm); // $wdiameter:x#
 std::string make_deadzone_command(int deadzone);             // $deadzone:x#
 
+// 生成驱动板配置回读指令 "$read_flash#"。
+std::string make_read_flash_command();
+
 // 生成电池电压查询指令 "$read_vol#"（PDF §12）。
 // 驱动板应答形如 "$Battery:7.40V#"，由 parse_battery_voltage() 解析。
 std::string make_read_voltage_command();
@@ -102,6 +105,12 @@ std::optional<QuadCounts> parse_counts(const std::string &frame,
 // 解析电池电压应答 "$Battery:7.40V#"，返回电压（单位 V）。
 // 缺帧尾、缺单位 V、数值非法、前缀不匹配均返回 std::nullopt。
 std::optional<double> parse_battery_voltage(const std::string &frame);
+
+// 从驱动板 "$read_flash#" 的多行文本响应中读取整数配置项。
+// key 必须与响应中的字段名完全匹配，例如 "Dead_Zone"；缺失、非法或
+// 带尾随字符的值均返回 std::nullopt。
+std::optional<int> parse_flash_config_int(const std::string &response,
+                                          const std::string &key);
 
 } // namespace protocol
 } // namespace motor_driver
